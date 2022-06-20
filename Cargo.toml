@@ -8,3 +8,26 @@ author = "CULTPONY <mail@cult.horse>"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+axum = { version = "0.5", features = ["http2", "headers"] }
+axum-extra = { version = "0.3", features = ["typed-routing", "query"] }
+clap = { version = "3.1", features = ["derive", "env"] }
+tokio = { version = "1.18", features = ["full"] }
+reqwest = "0.11"
+chrono = "0.4"
+duration-str = "0.3"
+anyhow = "*"
+flexi_logger = { version = "0.22", features = ["use_chrono_for_offset"] }
+log = "0.4"
+tower = "0.4"
+tower-http = { version = "0.2", features = ["full"] }
+url = "2.2"
+moka = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+sha1 = "0.10.1"
+sha3 = "0.10.1"
+hmac = "0.12.1"
+hex = "0.4.3"
+base64 = "0.13.0"
+
+[dev-dependencies]
+tokio = { version = "*", features = ["test-util"] }
