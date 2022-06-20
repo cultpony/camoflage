@@ -10,6 +10,10 @@ fn parse_duration(s: &str) -> Result<chrono::Duration> {
 pub struct Opts {
     #[clap(long, env = "CAMO_PORT", default_value = "8081")]
     pub port: u16,
+    #[clap(long, env = "CAMO_EXT_HOST", default_value = "localhost")]
+    pub external_domain: String,
+    #[clap(long, env = "CAMO_EXT_INSECURE")]
+    pub external_insecure: bool,
     #[clap(long, env = "CAMO_HEADER_VIA", default_value = "Camoflage Asset Proxy")]
     pub via_header: String,
     #[clap(long)]

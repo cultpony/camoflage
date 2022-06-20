@@ -1,10 +1,10 @@
-use std::convert::Infallible;
 use std::str::FromStr;
 
 use anyhow::Context;
 use anyhow::Result;
 use hmac::Hmac;
 use hmac::Mac;
+use sha1::Digest;
 use sha1::Sha1;
 use sha3::Sha3_256 as Sha3;
 
@@ -36,16 +36,21 @@ fn encode_expiry(expiry: u64) -> String {
         .to_string()
 }
 
-fn decode_expiry(mut expiry: String) -> Result<u64> {
+fn decode_expiry<S: Into<String>>(expiry: S) -> Result<u64> {
+    let mut expiry: String = expiry.into();
     while expiry.len() < 11 {
         expiry.push('A');
     }
-    let mut decoded = base64::decode_config(expiry, base64::URL_SAFE_NO_PAD)?;
+    let decoded = base64::decode_config(expiry, base64::URL_SAFE_NO_PAD)?;
     let decoded: [u8; 8] = decoded.try_into().unwrap();
     Ok(u64::from_le_bytes(decoded))
 }
 
 impl SecretKey {
+    pub fn new<S: Into<String>>(key: S) -> Self {
+        Self(key.into(), true)
+    }
+
     /// Disable using shae3 for signing URLs with expiry (the V2 URLs)
     pub fn disable_sha3(&mut self) {
         self.1 = false
@@ -54,16 +59,36 @@ impl SecretKey {
     /// If no expiry data is given, normal CAMO signature is used, otherwise the version is determined
     /// from the digest data.
     /// Any error results in a false output, meaning the digest is not considered valid
-    async fn verify_camo_signature(
+    pub async fn verify_camo_signature(
         &self,
         image_url: &url::Url,
         digest: &str,
-        expire: Option<u64>,
+        expire: Option<&str>,
     ) -> bool {
-        todo!()
+        let expire = match expire.map(decode_expiry).transpose() {
+            Err(_) => return false,
+            Ok(v) => v,
+        };
+        let signed = self.sign_url(image_url, expire).await;
+        let digest = Self::hash_digest(digest);
+        let signed = Self::hash_digest(signed);
+        Self::static_cmp(digest, signed)
     }
 
-    async fn sign_url(&self, image_url: &url::Url, expire: Option<u64>) -> String {
+    fn hash_digest<S: Into<String>>(digest: S) -> Vec<u8> {
+        let digest: String = digest.into();
+        let mut hash = sha3::Sha3_512::default();
+        hash.update(digest.as_bytes());
+        let digest = hash.finalize();
+        digest.as_slice().to_vec()
+    }
+
+    fn static_cmp(a: Vec<u8>, b: Vec<u8>) -> bool {
+        assert!(a.len() == b.len(), "Hash Size mismatch is not allowed to occur");
+        a.into_iter().zip(b.into_iter()).map(|(a, b)| (a ^ b) as u64).sum::<u64>() == 0
+    }
+
+    pub async fn sign_url(&self, image_url: &url::Url, expire: Option<u64>) -> String {
         match expire {
             Some(expire) => {
                 let mut hm = Hmac::<Sha3>::new_from_slice(self.0.as_bytes()).expect("invalid key");
@@ -79,7 +104,10 @@ impl SecretKey {
         }
     }
 
-    async fn sign_url_as_url(
+    /// Sign URL and construct the final URL to be used
+    /// 
+    /// The signed URL will use the Camo Inline Format
+    pub async fn sign_url_as_url(
         &self,
         image_url: &url::Url,
         expire: Option<u64>,
@@ -108,7 +136,10 @@ impl SecretKey {
         Ok(url)
     }
 
-    async fn sign_url_as_qurl(
+    /// Sign URL and construct the final URL to be used.
+    /// 
+    /// The signed URL will use the Camo Query Format
+    pub async fn sign_url_as_qurl(
         &self,
         image_url: &url::Url,
         expire: Option<u64>,

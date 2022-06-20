@@ -12,7 +12,7 @@ axum = { version = "0.5", features = ["http2", "headers"] }
 axum-extra = { version = "0.3", features = ["typed-routing", "query"] }
 clap = { version = "3.1", features = ["derive", "env"] }
 tokio = { version = "1.18", features = ["full"] }
-reqwest = "0.11"
+reqwest = { version = "0.11", features = ["stream"] }
 chrono = "0.4"
 duration-str = "0.3"
 anyhow = "*"
@@ -28,6 +28,8 @@ sha3 = "0.10.1"
 hmac = "0.12.1"
 hex = "0.4.3"
 base64 = "0.13.0"
+lazy_static = "1.4.0"
+futures = "0.3.21"
 
 [dev-dependencies]
 tokio = { version = "*", features = ["test-util"] }
