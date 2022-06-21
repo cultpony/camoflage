@@ -208,70 +208,31 @@ mod test {
         })
     }
 
-    #[tokio::test]
-    async fn test_404() -> Result<()> {
-        let image_url = "http://camo-localhost-test.herokuapp.com";
-        let image_url = unsafe { SafeUrl::trust_url(image_url.parse()?) };
+    macro_rules! test_status_and_body {
+        ($name:ident ; $url:expr => $status:expr) => {
+            test_status_and_body!($name ; $url => $status, 0);
+        };
 
-        let image_proxy = config();
-
-        let r = image_proxy.retrieve_url(&image_url).await?;
-
-        assert!(r.0.as_u16() == 404, "Must not retrieve 404 without image");
-        assert_eq!(r.1.len(), 0, "Must not return body with invalid 404");
-
-        let digest = image_proxy.sign(&image_url.0, None).await;
-
-        let (status, data) = image_url_ext(ImageUrlExt{ digest, url: image_url.0.to_string() }, Extension(image_proxy)).await;
-
-        assert_eq!(status.as_u16(), 404, "Must pass Status Code to client");
-        assert_eq!(data.len(), 0, "Must not return body with invalid 404");
-
-        Ok(())
+        ($name:ident ; $url:expr => $status:expr, $len:expr) => {
+            #[tokio::test]
+            async fn $name() -> Result<()> {
+                let image_url = $url;
+                let image_url = unsafe { SafeUrl::trust_url(image_url.parse()?) };
+                let image_proxy = config();
+                let digest = image_proxy.sign(&image_url.0, None).await;
+        
+                let (status, data) = image_url_ext(ImageUrlExt{ digest, url: image_url.0.to_string() }, Extension(image_proxy)).await;
+        
+                assert_eq!(status.as_u16(), $status, "Expected 404 Status Code response for input {}", image_url.0);
+                assert_eq!(data.len(), $len, "Expected Body with {} bytes as response", $len);
+        
+                Ok(())
+            }
+        };
     }
 
-    #[tokio::test]
-    async fn test_404_envexclude() -> Result<()> {
-        let image_url = "http://iphone.internal.example.org/foo.cgi";
-        let image_url = unsafe { SafeUrl::trust_url(image_url.parse()?) };
-        let image_proxy = config();
-        let digest = image_proxy.sign(&image_url.0, None).await;
-
-        let (status, data) = image_url_ext(ImageUrlExt{ digest, url: image_url.0.to_string() }, Extension(image_proxy)).await;
-
-        assert_eq!(status.as_u16(), 404, "Must pass Status Code to client");
-        assert_eq!(data.len(), 0, "Must not return body with invalid 404");
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_404_nonimage() -> Result<()> {
-        let image_url = "https://github.com/atmos/cinderella/raw/master/bootstrap.sh";
-        let image_url = unsafe { SafeUrl::trust_url(image_url.parse()?) };
-        let image_proxy = config();
-        let digest = image_proxy.sign(&image_url.0, None).await;
-
-        let (status, data) = image_url_ext(ImageUrlExt{ digest, url: image_url.0.to_string() }, Extension(image_proxy)).await;
-
-        assert_eq!(status.as_u16(), 404, "Must pass Status Code to client");
-        assert_eq!(data.len(), 0, "Must not return body with invalid 404");
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_404_toobig() -> Result<()> {
-        let image_url = "http://apod.nasa.gov/apod/image/0505/larryslookout_spirit_big.jpg";
-        let image_url = unsafe { SafeUrl::trust_url(image_url.parse()?) };
-        let image_proxy = config();
-        let digest = image_proxy.sign(&image_url.0, None).await;
-
-        let (status, data) = image_url_ext(ImageUrlExt{ digest, url: image_url.0.to_string() }, Extension(image_proxy)).await;
-
-        assert_eq!(status.as_u16(), 404, "Must pass Status Code to client");
-        assert_eq!(data.len(), 0, "Must not return body with invalid 404");
-
-        Ok(())
-    }
+    test_status_and_body!(test_404_plain; "http://camo-localhost-test.herokuapp.com" => 404);
+    test_status_and_body!(test_404_envexclude; "http://iphone.internal.example.org/foo.cgi" => 404);
+    test_status_and_body!(test_404_nonimage; "https://github.com/atmos/cinderella/raw/master/bootstrap.sh" => 404);
+    test_status_and_body!(test_404_toobig; "http://apod.nasa.gov/apod/image/0505/larryslookout_spirit_big.jpg" => 404);
 }
