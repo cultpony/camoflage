@@ -1,6 +1,7 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, io::BufReader};
 
-use axum::http::HeaderValue;
+use axum::{http::HeaderValue, body::Bytes};
+use anyhow::Result;
 
 pub fn safe_mime_type(mime_type: Option<&HeaderValue>) -> bool {
     let mime_type = match mime_type {
@@ -8,9 +9,40 @@ pub fn safe_mime_type(mime_type: Option<&HeaderValue>) -> bool {
         Some(v) => v,
     };
     match mime_type.to_str() {
-        Err(e) => false,
-        Ok(mime_type) => SAFE_MIME_TYPES.contains(mime_type),
+        Err(_) => false,
+        Ok(mime_type) => SAFE_MIME_TYPES.contains(&*mime_type.to_lowercase()),
     }
+}
+
+pub fn is_svg(mime_type: Option<&HeaderValue>) -> bool {
+    let mime_type = match mime_type {
+        None => return false,
+        Some(v) => v,
+    };
+    match mime_type.to_str() {
+        Err(_) => false,
+        Ok(mime_type) => mime_type.to_lowercase() == "image/svg+xml",
+    }
+}
+
+pub fn verify_data(data: &Bytes) -> bool {
+    verify_data_int(data).is_ok()
+}
+
+fn verify_data_int(data: &Bytes) -> Result<()> {
+    let format = image::guess_format(data)?;
+    let mut datac = Vec::new();
+    datac.extend_from_slice(data);
+    let mut data = std::io::Cursor::new(datac);
+    let mut reader = image::io::Reader::with_format(&mut data, format)
+        .with_guessed_format()?;
+    let mut limits = image::io::Limits::default();
+    limits.max_image_height = Some(100_000);
+    limits.max_image_width = Some(100_000);
+    limits.max_alloc = Some(512_000_000);
+    reader.limits(limits);
+    let _ = reader.decode()?;
+    Ok(())
 }
 
 lazy_static::lazy_static!{
