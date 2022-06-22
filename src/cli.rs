@@ -34,4 +34,6 @@ pub struct Opts {
     pub keep_alive: bool,
     #[clap(long, env = "CAMO_HTTP_PROXY")]
     pub proxy: Option<String>,
+    #[clap(long, env = "CAMO_SIGN_REQUEST_KEY")]
+    pub sign_request_key: Option<String>,
 }

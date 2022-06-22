@@ -11,6 +11,18 @@ use sha3::Sha3_256 as Sha3;
 #[derive(Clone)]
 pub struct SecretKey(String, bool);
 
+
+pub fn static_cmp(a: Vec<u8>, b: Vec<u8>) -> bool {
+    assert!(a.len() == b.len(), "Hash Size mismatch is not allowed to occur");
+    a.into_iter().zip(b.into_iter()).map(|(a, b)| (a ^ b) as u64).sum::<u64>() == 0
+}
+
+pub fn static_cmp_str<S: Clone+Into<String>, S2: Clone+Into<String>>(a: &S, b: &S2) -> bool {
+    let a: String = a.clone().into();
+    let b: String = b.clone().into();
+    static_cmp(a.into_bytes(), b.into_bytes())
+}
+
 impl std::fmt::Debug for SecretKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("SecretKey(<..>)")
@@ -72,7 +84,9 @@ impl SecretKey {
         let signed = self.sign_url(image_url, expire).await;
         let digest = Self::hash_digest(digest);
         let signed = Self::hash_digest(signed);
-        Self::static_cmp(digest, signed)
+        static_cmp(digest, signed) && expire.map(|x| {
+            x > std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs()
+        }).unwrap_or(true)
     }
 
     fn hash_digest<S: Into<String>>(digest: S) -> Vec<u8> {
@@ -81,11 +95,6 @@ impl SecretKey {
         hash.update(digest.as_bytes());
         let digest = hash.finalize();
         digest.as_slice().to_vec()
-    }
-
-    fn static_cmp(a: Vec<u8>, b: Vec<u8>) -> bool {
-        assert!(a.len() == b.len(), "Hash Size mismatch is not allowed to occur");
-        a.into_iter().zip(b.into_iter()).map(|(a, b)| (a ^ b) as u64).sum::<u64>() == 0
     }
 
     pub async fn sign_url(&self, image_url: &url::Url, expire: Option<u64>) -> String {
