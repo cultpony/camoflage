@@ -3,7 +3,7 @@ use anyhow::Result;
 use crate::secretkey::SecretKey;
 
 fn parse_duration(s: &str) -> Result<chrono::Duration> {
-    Ok(duration_str::parse_chrono(s)?)
+    duration_str::parse_chrono(s)
 }
 
 #[derive(clap::Parser, Clone, Debug)]
@@ -21,7 +21,7 @@ pub struct Opts {
     #[clap(long, env = "CAMO_HEADER_VIA", default_value = "Camoflage Asset Proxy")]
     pub via_header: String,
     /// Signing Key to use for CAMO URLs
-    /// 
+    ///
     /// You must set this even if you plan to use Sign Requests
     #[clap(long)]
     pub secret_key: SecretKey,
@@ -49,11 +49,11 @@ pub struct Opts {
     #[clap(long, env = "CAMO_HTTP_PROXY")]
     pub proxy: Option<String>,
     /// The Sign Request Key
-    /// 
+    ///
     /// Encode your URL as base64, then send a request to /sign/:sign_request_key/:url/:expire
-    /// 
+    ///
     /// You will receive the signed URL as text/plain response.
-    /// 
+    ///
     /// This enables driving CAMO without the need for any specialized library.
     #[clap(long, env = "CAMO_SIGN_REQUEST_KEY")]
     pub sign_request_key: Option<String>,

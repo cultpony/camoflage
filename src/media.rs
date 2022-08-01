@@ -1,7 +1,7 @@
-use std::{collections::HashSet, io::BufReader};
+use std::collections::HashSet;
 
-use axum::{http::HeaderValue, body::Bytes};
 use anyhow::Result;
+use axum::{body::Bytes, http::HeaderValue};
 
 pub fn safe_mime_type(mime_type: Option<&HeaderValue>) -> bool {
     let mime_type = match mime_type {
@@ -34,8 +34,7 @@ fn verify_data_int(data: &Bytes) -> Result<()> {
     let mut datac = Vec::new();
     datac.extend_from_slice(data);
     let mut data = std::io::Cursor::new(datac);
-    let mut reader = image::io::Reader::with_format(&mut data, format)
-        .with_guessed_format()?;
+    let mut reader = image::io::Reader::with_format(&mut data, format).with_guessed_format()?;
     let mut limits = image::io::Limits::default();
     limits.max_image_height = Some(100_000);
     limits.max_image_width = Some(100_000);
@@ -45,7 +44,7 @@ fn verify_data_int(data: &Bytes) -> Result<()> {
     Ok(())
 }
 
-lazy_static::lazy_static!{
+lazy_static::lazy_static! {
     static ref SAFE_MIME_TYPES: HashSet<&'static str> = {
         let mut m = HashSet::new();
         const SAFE_MIME_TYPES_LIST: [&str; 43] = [

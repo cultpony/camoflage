@@ -1,36 +1,29 @@
-use axum::Extension;
-use axum::Router;
-use axum::body::BoxBody;
+use anyhow::Context;
+use anyhow::Result;
 use axum::body::Bytes;
-use axum::body::StreamBody;
-use axum::error_handling::HandleErrorLayer;
 use axum::headers::{ContentType, HeaderMapExt};
 use axum::http::HeaderMap;
-use axum::routing::get;
 use axum::http::StatusCode;
+use axum::Extension;
+use axum::Router;
 use axum_extra::extract::Query;
+use axum_extra::routing::RouterExt;
+use axum_extra::routing::TypedPath;
 use chrono::Duration;
 use clap::StructOpt;
-use anyhow::Result;
-use anyhow::Context;
 use cli::Opts;
 use flexi_logger::Duplicate;
-use futures::Stream;
-use futures::StreamExt;
 use log::*;
 use reqwest::redirect::Policy;
 use secretkey::SecretKey;
-use tower::ServiceBuilder;
-use tower_http::ServiceBuilderExt;
-use tower_http::set_header::request;
-use tower_http::trace::TraceLayer;
-use axum_extra::routing::TypedPath;
-use axum_extra::routing::RouterExt;
 use serde::Deserialize;
+use tower::ServiceBuilder;
+use tower_http::trace::TraceLayer;
 
 mod cli;
-mod secretkey;
+pub mod diskcache;
 mod media;
+mod secretkey;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -39,7 +32,7 @@ async fn main() -> Result<()> {
     flexi_logger::Logger::try_with_env_or_str("info")?
         .duplicate_to_stdout(Duplicate::All)
         .start()?;
-    
+
     let proxy = ImageProxy::new(&app);
 
     let http = Router::new()
@@ -52,7 +45,7 @@ async fn main() -> Result<()> {
         .layer(ServiceBuilder::new().layer(TraceLayer::new_for_http()));
 
     info!("Build router, starting HTTP server");
-    
+
     axum::Server::bind(&format!("0.0.0.0:{}", app.port).parse()?)
         .serve(http.into_make_service())
         .await
@@ -63,13 +56,6 @@ async fn main() -> Result<()> {
 #[derive(Clone, Debug)]
 pub struct SignRequestKey(Option<String>);
 
-async fn handle_error(err: axum::BoxError) -> (StatusCode, String) {
-    error!("Error in HTTP Middleware: {:?}", err);
-    (StatusCode::INTERNAL_SERVER_ERROR, "Internal Error".to_string())
-}
-
-async fn root() {}
-
 #[derive(TypedPath, Deserialize)]
 #[typed_path("/sign/:sign_request_key/:url/:expire")]
 struct SignImageUrl {
@@ -79,16 +65,19 @@ struct SignImageUrl {
 }
 
 async fn sign_image_url(
-    SignImageUrl { url, sign_request_key, expire }: SignImageUrl,
+    SignImageUrl {
+        url,
+        sign_request_key,
+        expire,
+    }: SignImageUrl,
     Extension(image_proxy): Extension<ImageProxy>,
     Extension(SignRequestKey(key)): Extension<SignRequestKey>,
 ) -> (StatusCode, String) {
-    if key.map(|key| secretkey::static_cmp_str(&sign_request_key, &key)).unwrap_or(true) {
-        let expire = if expire == 0 {
-            None
-        } else {
-            Some(expire)
-        };
+    if key
+        .map(|key| secretkey::static_cmp_str(&sign_request_key, &key))
+        .unwrap_or(true)
+    {
+        let expire = if expire == 0 { None } else { Some(expire) };
         match image_proxy.sign_url(&url, expire).await {
             Ok(v) => (StatusCode::OK, v),
             Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("{}", e)),
@@ -112,10 +101,10 @@ struct ImageUrlQueryPortion {
 async fn image_url(
     ImageUrl { digest }: ImageUrl,
     url: Query<ImageUrlQueryPortion>,
-    image_proxy: Extension<ImageProxy>
+    image_proxy: Extension<ImageProxy>,
 ) -> (StatusCode, HeaderMap, Bytes) {
     let url = url.url.clone();
-    image_url_ext( ImageUrlExt{ digest, url }, image_proxy ).await
+    image_url_ext(ImageUrlExt { digest, url }, image_proxy).await
 }
 
 #[derive(TypedPath, Deserialize)]
@@ -126,9 +115,18 @@ struct ImageUrlExt {
 }
 
 async fn image_url_ext(
-    ImageUrlExt{ digest, url} : ImageUrlExt,
-    Extension(image_proxy): Extension<ImageProxy>) -> (StatusCode, HeaderMap, Bytes) {
-        image_url_primary(ImageUrlFull{ digest, url, expire: "0".to_string() }, Extension(image_proxy)).await
+    ImageUrlExt { digest, url }: ImageUrlExt,
+    Extension(image_proxy): Extension<ImageProxy>,
+) -> (StatusCode, HeaderMap, Bytes) {
+    image_url_primary(
+        ImageUrlFull {
+            digest,
+            url,
+            expire: "0".to_string(),
+        },
+        Extension(image_proxy),
+    )
+    .await
 }
 
 #[derive(TypedPath, Deserialize)]
@@ -140,36 +138,58 @@ struct ImageUrlFull {
 }
 
 async fn image_url_primary(
-    ImageUrlFull{ digest, url, expire } : ImageUrlFull,
-    Extension(image_proxy): Extension<ImageProxy>) -> (StatusCode, HeaderMap, Bytes) {
+    ImageUrlFull {
+        digest,
+        url,
+        expire,
+    }: ImageUrlFull,
+    Extension(image_proxy): Extension<ImageProxy>,
+) -> (StatusCode, HeaderMap, Bytes) {
     let expire = match expire.as_str() {
         "0" => None,
         v => Some(v),
     };
     let image_url = match image_proxy.verify_digest(&digest, url, expire).await {
         Ok(v) => v,
-        Err(e) => return {
-            let mut hm = HeaderMap::new();
-            hm.typed_insert(ContentType::text());
-            if (e.to_string() == "invalid URL digest") {
-                (StatusCode::GONE, hm, Bytes::from("URL expired or invalid"))
-            } else {
-                (StatusCode::INTERNAL_SERVER_ERROR, hm, Bytes::from(format!("Error: {}", e)))    
+        Err(e) => {
+            return {
+                let mut hm = HeaderMap::new();
+                hm.typed_insert(ContentType::text());
+                if e.to_string() == "invalid URL digest" {
+                    (StatusCode::GONE, hm, Bytes::from("URL expired or invalid"))
+                } else {
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        hm,
+                        Bytes::from(format!("Error: {}", e)),
+                    )
+                }
             }
         }
     };
     let (status, original_headers, stream) = match image_proxy.retrieve_url(&image_url).await {
         Ok(v) => v,
-        Err(e) => return {
-            let mut hm = HeaderMap::new();
-            hm.typed_insert(ContentType::text());
-            (StatusCode::INTERNAL_SERVER_ERROR, hm, Bytes::from(format!("Error: {}", e)))
+        Err(e) => {
+            return {
+                let mut hm = HeaderMap::new();
+                hm.typed_insert(ContentType::text());
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    hm,
+                    Bytes::from(format!("Error: {}", e)),
+                )
+            }
         }
     };
     let mut headers = HeaderMap::new();
     {
         use axum::headers::*;
-        headers.typed_insert(CacheControl::new().with_private().with_no_cache().with_no_store());
+        headers.typed_insert(
+            CacheControl::new()
+                .with_private()
+                .with_no_cache()
+                .with_no_store(),
+        );
         headers.typed_insert(Expires::from(std::time::UNIX_EPOCH));
         match original_headers.typed_get::<ContentType>() {
             Some(v) => headers.typed_insert(v),
@@ -183,6 +203,13 @@ async fn image_url_primary(
 pub struct SafeUrl(url::Url);
 
 impl SafeUrl {
+    /// Turst the incoming URL to be valid and good
+    /// 
+    /// # Safety
+    /// 
+    /// If the URL provided is a local network URL or localhost, the constructed SafeUrl
+    /// type is invalid and callers are permitted to panic or cause UB.
+    /// 
     pub unsafe fn trust_url(u: url::Url) -> Self {
         Self(u)
     }
@@ -201,12 +228,12 @@ pub struct ImageProxy {
 
 impl ImageProxy {
     pub fn new(opts: &Opts) -> Self {
-        Self{
+        Self {
             key: opts.secret_key.clone(),
             host: opts.external_domain.clone(),
             insecure: opts.external_insecure,
-            connect_timeout: opts.socket_timeout.clone(),
-            timeout: opts.request_timeout.clone(),
+            connect_timeout: opts.socket_timeout,
+            timeout: opts.request_timeout,
             max_redirect: opts.max_redir.into(),
             max_size: opts.length_limit.try_into().unwrap(),
         }
@@ -217,17 +244,35 @@ impl ImageProxy {
     }
 
     async fn sign_url(&self, image_url: &url::Url, expire: Option<u64>) -> Result<String> {
-        Ok(self.key.sign_url_as_url(image_url, expire, &self.host).await?.as_str().to_owned())
+        Ok(self
+            .key
+            .sign_url_as_url(image_url, expire, &self.host)
+            .await?
+            .as_str()
+            .to_owned())
     }
 
     /// Verifies the digest matches the URL, and if yes, converts it into a URL type to be used with the other functions
-    async fn verify_digest(&self, digest: &str, image_url: String, expire: Option<&str>) -> Result<SafeUrl> {
+    async fn verify_digest(
+        &self,
+        digest: &str,
+        image_url: String,
+        expire: Option<&str>,
+    ) -> Result<SafeUrl> {
         let image_url = match expire {
             None => String::from_utf8(hex::decode(image_url)?)?,
-            Some(_) => String::from_utf8(base64::decode_config(image_url, base64::URL_SAFE_NO_PAD)?)?,
+            Some(_) => {
+                String::from_utf8(base64::decode_config(image_url, base64::URL_SAFE_NO_PAD)?)?
+            }
         };
-        let image_url = image_url.parse().with_context(|| format!("URL {} invalid", image_url))?;
-        if !self.key.verify_camo_signature(&image_url, digest, expire).await {
+        let image_url = image_url
+            .parse()
+            .with_context(|| format!("URL {} invalid", image_url))?;
+        if !self
+            .key
+            .verify_camo_signature(&image_url, digest, expire)
+            .await
+        {
             anyhow::bail!("invalid URL digest")
         }
         Ok(SafeUrl(image_url))
@@ -245,23 +290,23 @@ impl ImageProxy {
         if !(image_url.0.scheme() == "http" || image_url.0.scheme() == "https") {
             return Ok((StatusCode::NOT_FOUND, HeaderMap::new(), Bytes::new()));
         }
-        let is_local_ip = { 
+        let is_local_ip = {
             let host = image_url.0.host_str();
-            let host: Option<std::net::IpAddr> = host.map(|x| { x.parse() }).transpose().unwrap_or(None);
+            let host: Option<std::net::IpAddr> =
+                host.map(|x| x.parse()).transpose().unwrap_or(None);
             match host {
                 None => false,
                 Some(v) => {
-                    v.is_unspecified() || match v {
-                        std::net::IpAddr::V4(v4) => {
-                            v4.is_link_local() ||
-                            v4.is_documentation() ||
-                            v4.is_loopback() ||
-                            v4.is_private()
-                        },
-                        std::net::IpAddr::V6(v6) => {
-                            v6.is_loopback()
-                        },
-                    }
+                    v.is_unspecified()
+                        || match v {
+                            std::net::IpAddr::V4(v4) => {
+                                v4.is_link_local()
+                                    || v4.is_documentation()
+                                    || v4.is_loopback()
+                                    || v4.is_private()
+                            }
+                            std::net::IpAddr::V6(v6) => v6.is_loopback(),
+                        }
                 }
             }
         };
@@ -278,17 +323,20 @@ impl ImageProxy {
             Err(e) => {
                 error!("Could not fetch resource: {e}");
                 return Ok((StatusCode::NOT_FOUND, HeaderMap::new(), Bytes::new()));
-            },
+            }
             Ok(v) => v,
         };
         let status = resp.status();
         let headers = resp.headers().clone();
         let mime_type = resp.headers().get(reqwest::header::CONTENT_TYPE);
         let bytes = if media::safe_mime_type(mime_type) {
-            let expected_size: usize = resp.content_length().map(|x| x.try_into().unwrap()).unwrap_or(self.max_size);
+            let expected_size: usize = resp
+                .content_length()
+                .map(|x| x.try_into().unwrap())
+                .unwrap_or(self.max_size);
             if expected_size > self.max_size {
                 warn!("Image exceeded size limit at {:?}", image_url);
-                return Ok((StatusCode::NOT_FOUND, headers, Bytes::new()))
+                return Ok((StatusCode::NOT_FOUND, headers, Bytes::new()));
             }
             let mut buffer = Vec::with_capacity(expected_size);
             while let Some(chunk) = resp.chunk().await? {
@@ -314,14 +362,16 @@ impl ImageProxy {
 
 #[cfg(test)]
 mod test {
-    use axum::{Extension, headers::{Header, HeaderMapExt}};
+    use axum::{
+        headers::HeaderMapExt,
+        Extension,
+    };
     use chrono::Duration;
 
-    use crate::{ImageProxy, cli::Opts, SafeUrl, image_url_ext, ImageUrlExt};
-    use anyhow::Result;
+    use crate::{cli::Opts, image_url_ext, ImageProxy, ImageUrlExt, SafeUrl};
 
     pub fn config() -> ImageProxy {
-        ImageProxy::new(&Opts{
+        ImageProxy::new(&Opts {
             port: 8081,
             via_header: "Camoflage Asset Proxy".to_string(),
             secret_key: crate::secretkey::SecretKey::new("0x24FEEDFACEDEADBEEFCAFE"),
@@ -358,12 +408,12 @@ mod test {
                 let image_url = unsafe { SafeUrl::trust_url(image_url.parse().expect("could not parse URL")) };
                 let image_proxy = config();
                 let digest = image_proxy.sign(&image_url.0, None).await;
-        
+
                 use axum::http::StatusCode;
                 use axum::headers::HeaderMap;
                 use axum::body::Bytes;
                 let (status, headers, data): (StatusCode, HeaderMap, Bytes) = image_url_ext(ImageUrlExt{ digest, url: image_url.0.to_string() }, Extension(image_proxy)).await;
-        
+
                 assert_eq!(status.as_u16(), $status, "Expected {} Status Code response for input {:?}", $status, image_url.0);
 
                 assert!($body(status, headers.clone(), data.clone()), "Validation failed");

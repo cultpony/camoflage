@@ -11,13 +11,19 @@ use sha3::Sha3_256 as Sha3;
 #[derive(Clone)]
 pub struct SecretKey(String, bool);
 
-
 pub fn static_cmp(a: Vec<u8>, b: Vec<u8>) -> bool {
-    assert!(a.len() == b.len(), "Hash Size mismatch is not allowed to occur");
-    a.into_iter().zip(b.into_iter()).map(|(a, b)| (a ^ b) as u64).sum::<u64>() == 0
+    assert!(
+        a.len() == b.len(),
+        "Hash Size mismatch is not allowed to occur"
+    );
+    a.into_iter()
+        .zip(b.into_iter())
+        .map(|(a, b)| (a ^ b) as u64)
+        .sum::<u64>()
+        == 0
 }
 
-pub fn static_cmp_str<S: Clone+Into<String>, S2: Clone+Into<String>>(a: &S, b: &S2) -> bool {
+pub fn static_cmp_str<S: Clone + Into<String>, S2: Clone + Into<String>>(a: &S, b: &S2) -> bool {
     let a: String = a.clone().into();
     let b: String = b.clone().into();
     static_cmp(a.into_bytes(), b.into_bytes())
@@ -44,7 +50,7 @@ impl FromStr for SecretKey {
 fn encode_expiry(expiry: u64) -> String {
     let expiry = expiry.to_le_bytes();
     base64::encode_config(expiry, base64::URL_SAFE_NO_PAD)
-        .trim_end_matches("A")
+        .trim_end_matches('A')
         .to_string()
 }
 
@@ -84,9 +90,15 @@ impl SecretKey {
         let signed = self.sign_url(image_url, expire).await;
         let digest = Self::hash_digest(digest);
         let signed = Self::hash_digest(signed);
-        static_cmp(digest, signed) && expire.map(|x| {
-            x > std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs()
-        }).unwrap_or(true)
+        static_cmp(digest, signed)
+            && expire
+                .map(|x| {
+                    x > std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs()
+                })
+                .unwrap_or(true)
     }
 
     fn hash_digest<S: Into<String>>(digest: S) -> Vec<u8> {
@@ -114,7 +126,7 @@ impl SecretKey {
     }
 
     /// Sign URL and construct the final URL to be used
-    /// 
+    ///
     /// The signed URL will use the Camo Inline Format
     pub async fn sign_url_as_url(
         &self,
@@ -134,19 +146,16 @@ impl SecretKey {
             .unwrap()
             .push(sign.as_str())
             .push(&url_encoded);
-        match expire {
-            Some(expire) => {
-                url.path_segments_mut()
-                    .unwrap()
-                    .push(&encode_expiry(expire));
-            }
-            _ => (),
+        if let Some(expire) = expire {
+            url.path_segments_mut()
+            .unwrap()
+            .push(&encode_expiry(expire));
         }
         Ok(url)
     }
 
     /// Sign URL and construct the final URL to be used.
-    /// 
+    ///
     /// The signed URL will use the Camo Query Format
     pub async fn sign_url_as_qurl(
         &self,
@@ -164,13 +173,10 @@ impl SecretKey {
         };
         url.path_segments_mut().unwrap().push(sign.as_str());
         url.query_pairs_mut().append_pair("url", &url_encoded);
-        match expire {
-            Some(expire) => {
-                url.path_segments_mut()
-                    .unwrap()
-                    .push(&encode_expiry(expire));
-            }
-            _ => (),
+        if let Some(expire) = expire {
+            url.path_segments_mut()
+            .unwrap()
+            .push(&encode_expiry(expire));
         }
         Ok(url)
     }
