@@ -1,5 +1,4 @@
-use anyhow::Context;
-use anyhow::Result;
+pub use errors::*;
 use axum::body::Bytes;
 use axum::headers::{ContentType, HeaderMapExt};
 use axum::http::HeaderMap;
@@ -24,6 +23,7 @@ mod cli;
 pub mod diskcache;
 mod media;
 mod secretkey;
+mod errors;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -33,7 +33,7 @@ async fn main() -> Result<()> {
         .duplicate_to_stdout(Duplicate::All)
         .start()?;
 
-    let proxy = ImageProxy::new(&app);
+    let proxy = ImageProxy::new(&app).await?;
 
     let http = Router::new()
         .typed_get(image_url)
@@ -72,18 +72,15 @@ async fn sign_image_url(
     }: SignImageUrl,
     Extension(image_proxy): Extension<ImageProxy>,
     Extension(SignRequestKey(key)): Extension<SignRequestKey>,
-) -> (StatusCode, String) {
+) -> Result<(StatusCode, String)> {
     if key
         .map(|key| secretkey::static_cmp_str(&sign_request_key, &key))
         .unwrap_or(true)
     {
         let expire = if expire == 0 { None } else { Some(expire) };
-        match image_proxy.sign_url(&url, expire).await {
-            Ok(v) => (StatusCode::OK, v),
-            Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("{}", e)),
-        }
+        Ok((StatusCode::OK, image_proxy.sign_url(&url, expire).await?))
     } else {
-        (StatusCode::UNAUTHORIZED, "".to_string())
+        Ok((StatusCode::UNAUTHORIZED, "".to_string()))
     }
 }
 
@@ -102,7 +99,7 @@ async fn image_url(
     ImageUrl { digest }: ImageUrl,
     url: Query<ImageUrlQueryPortion>,
     image_proxy: Extension<ImageProxy>,
-) -> (StatusCode, HeaderMap, Bytes) {
+) -> Result<(StatusCode, HeaderMap, Bytes)> {
     let url = url.url.clone();
     image_url_ext(ImageUrlExt { digest, url }, image_proxy).await
 }
@@ -117,7 +114,7 @@ struct ImageUrlExt {
 async fn image_url_ext(
     ImageUrlExt { digest, url }: ImageUrlExt,
     Extension(image_proxy): Extension<ImageProxy>,
-) -> (StatusCode, HeaderMap, Bytes) {
+) -> Result<(StatusCode, HeaderMap, Bytes)> {
     image_url_primary(
         ImageUrlFull {
             digest,
@@ -144,43 +141,13 @@ async fn image_url_primary(
         expire,
     }: ImageUrlFull,
     Extension(image_proxy): Extension<ImageProxy>,
-) -> (StatusCode, HeaderMap, Bytes) {
+) -> Result<(StatusCode, HeaderMap, Bytes)> {
     let expire = match expire.as_str() {
         "0" => None,
         v => Some(v),
     };
-    let image_url = match image_proxy.verify_digest(&digest, url, expire).await {
-        Ok(v) => v,
-        Err(e) => {
-            return {
-                let mut hm = HeaderMap::new();
-                hm.typed_insert(ContentType::text());
-                if e.to_string() == "invalid URL digest" {
-                    (StatusCode::GONE, hm, Bytes::from("URL expired or invalid"))
-                } else {
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        hm,
-                        Bytes::from(format!("Error: {}", e)),
-                    )
-                }
-            }
-        }
-    };
-    let (status, original_headers, stream) = match image_proxy.retrieve_url(&image_url).await {
-        Ok(v) => v,
-        Err(e) => {
-            return {
-                let mut hm = HeaderMap::new();
-                hm.typed_insert(ContentType::text());
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    hm,
-                    Bytes::from(format!("Error: {}", e)),
-                )
-            }
-        }
-    };
+    let image_url = image_proxy.verify_digest(&digest, url, expire).await?;
+    let (status, original_headers, stream) = image_proxy.retrieve_url(&image_url).await?;
     let mut headers = HeaderMap::new();
     {
         use axum::headers::*;
@@ -196,7 +163,7 @@ async fn image_url_primary(
             None => (),
         };
     }
-    (status, headers, stream)
+    Ok((status, headers, stream))
 }
 
 #[derive(Debug, Clone)]
@@ -204,12 +171,12 @@ pub struct SafeUrl(url::Url);
 
 impl SafeUrl {
     /// Turst the incoming URL to be valid and good
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// If the URL provided is a local network URL or localhost, the constructed SafeUrl
     /// type is invalid and callers are permitted to panic or cause UB.
-    /// 
+    ///
     pub unsafe fn trust_url(u: url::Url) -> Self {
         Self(u)
     }
@@ -224,11 +191,12 @@ pub struct ImageProxy {
     timeout: Duration,
     max_redirect: usize,
     max_size: usize,
+    disk_cache: Option<diskcache::DiskCache>,
 }
 
 impl ImageProxy {
-    pub fn new(opts: &Opts) -> Self {
-        Self {
+    pub async fn new(opts: &Opts) -> Result<Self> {
+        Ok(Self {
             key: opts.secret_key.clone(),
             host: opts.external_domain.clone(),
             insecure: opts.external_insecure,
@@ -236,7 +204,19 @@ impl ImageProxy {
             timeout: opts.request_timeout,
             max_redirect: opts.max_redir.into(),
             max_size: opts.length_limit.try_into().unwrap(),
-        }
+            disk_cache: match &opts.cache_dir {
+                Some(cache_dir) => Some(
+                    diskcache::DiskCache::new(
+                        cache_dir.clone(),
+                        opts.cache_dir_size,
+                        opts.cache_mem_size,
+                        opts.cache_expire_after,
+                    )
+                    .await?,
+                ),
+                None => None,
+            },
+        })
     }
 
     async fn sign(&self, image_url: &url::Url, expire: Option<u64>) -> String {
@@ -260,20 +240,23 @@ impl ImageProxy {
         expire: Option<&str>,
     ) -> Result<SafeUrl> {
         let image_url = match expire {
-            None => String::from_utf8(hex::decode(image_url)?)?,
+            None => String::from_utf8(hex::decode(image_url.clone())
+                .map_err(|e| -> Error { e.into() })
+                .with_context(|| format!("could not parse digest string {image_url:?}"))?)?,
             Some(_) => {
                 String::from_utf8(base64::decode_config(image_url, base64::URL_SAFE_NO_PAD)?)?
             }
         };
         let image_url = image_url
             .parse()
+            .map_err(|e: url::ParseError| -> Error { e.into() })
             .with_context(|| format!("URL {} invalid", image_url))?;
         if !self
             .key
             .verify_camo_signature(&image_url, digest, expire)
             .await
         {
-            anyhow::bail!("invalid URL digest")
+            return Err(Error::InvalidURLDigest);
         }
         Ok(SafeUrl(image_url))
     }
@@ -362,15 +345,12 @@ impl ImageProxy {
 
 #[cfg(test)]
 mod test {
-    use axum::{
-        headers::HeaderMapExt,
-        Extension,
-    };
+    use axum::{headers::HeaderMapExt, Extension};
     use chrono::Duration;
 
     use crate::{cli::Opts, image_url_ext, ImageProxy, ImageUrlExt, SafeUrl};
 
-    pub fn config() -> ImageProxy {
+    pub async fn config() -> crate::Result<ImageProxy> {
         ImageProxy::new(&Opts {
             port: 8081,
             via_header: "Camoflage Asset Proxy".to_string(),
@@ -386,7 +366,11 @@ mod test {
             external_domain: "camo.local".to_string(),
             external_insecure: false,
             sign_request_key: None,
-        })
+            cache_dir: None,
+            cache_dir_size: ubyte::ByteUnit::Byte(0),
+            cache_mem_size: ubyte::ByteUnit::Byte(0),
+            cache_expire_after: Duration::seconds(0),
+        }).await
     }
 
     macro_rules! test_status_and_body {
@@ -403,16 +387,16 @@ mod test {
 
         ($name:ident ; $url:expr => $status:expr; $body:expr) => {
             #[tokio::test]
-            async fn $name() {
+            async fn $name() -> crate::Result<()> {
                 let image_url = $url;
                 let image_url = unsafe { SafeUrl::trust_url(image_url.parse().expect("could not parse URL")) };
-                let image_proxy = config();
+                let image_proxy = config().await?;
                 let digest = image_proxy.sign(&image_url.0, None).await;
 
                 use axum::http::StatusCode;
                 use axum::headers::HeaderMap;
                 use axum::body::Bytes;
-                let (status, headers, data): (StatusCode, HeaderMap, Bytes) = image_url_ext(ImageUrlExt{ digest, url: image_url.0.to_string() }, Extension(image_proxy)).await;
+                let (status, headers, data): (StatusCode, HeaderMap, Bytes) = image_url_ext(ImageUrlExt{ digest, url: hex::encode(image_url.0.to_string()) }, Extension(image_proxy)).await?;
 
                 assert_eq!(status.as_u16(), $status, "Expected {} Status Code response for input {:?}", $status, image_url.0);
 
@@ -421,9 +405,10 @@ mod test {
                 if (status == StatusCode::OK) {
                     println!("headers: {:?}", headers);
                     if !crate::media::is_svg(headers.get(reqwest::header::CONTENT_TYPE)) {
-                    assert!(crate::media::verify_data(&data), "Must be valid media");
+                        assert!(crate::media::verify_data(&data), "Must be valid media");
                     }
                 }
+                Ok(())
             }
         };
     }

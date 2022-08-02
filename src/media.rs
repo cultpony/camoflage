@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use anyhow::Result;
+use crate::Result;
 use axum::{body::Bytes, http::HeaderValue};
 
 pub fn safe_mime_type(mime_type: Option<&HeaderValue>) -> bool {

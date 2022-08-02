@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
-use anyhow::Context;
-use anyhow::Result;
+use crate::Error;
+use crate::{Result, Context};
 use hmac::Hmac;
 use hmac::Mac;
 use sha1::Digest;
@@ -36,13 +36,15 @@ impl std::fmt::Debug for SecretKey {
 }
 
 impl FromStr for SecretKey {
-    type Err = anyhow::Error;
+    type Err = crate::Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self> {
         let _: Hmac<Sha1> =
-            Hmac::<Sha1>::new_from_slice(s.as_bytes()).context("invalid key supplied")?;
+            Hmac::<Sha1>::new_from_slice(s.as_bytes())
+            .map_err(|e| -> Error { e.into() }).context("invalid key supplied")?;
         let _: Hmac<Sha3> =
-            Hmac::<Sha3>::new_from_slice(s.as_bytes()).context("invalid key supplied")?;
+            Hmac::<Sha3>::new_from_slice(s.as_bytes())
+            .map_err(|e| -> Error { e.into() }).context("invalid key supplied")?;
         Ok(SecretKey(s.to_string(), true))
     }
 }
@@ -187,23 +189,23 @@ mod test {
     use std::str::FromStr;
 
     use crate::secretkey::{decode_expiry, encode_expiry, SecretKey};
-    use anyhow::{Context, Result};
+    use crate::{Context, Result};
 
     #[test]
     fn test_expiry_encoding() {
         for i in 0..(u16::MAX as u64) {
             let j = encode_expiry(i);
-            let id = decode_expiry(j).context(format!("error on {i}")).unwrap();
+            let id = decode_expiry(j).context(&format!("error on {i}")).unwrap();
             assert_eq!(i, id);
         }
         for i in (u32::MAX as u64 - u16::MAX as u64)..(u32::MAX as u64 + u16::MAX as u64) {
             let j = encode_expiry(i);
-            let id = decode_expiry(j).context(format!("error on {i}")).unwrap();
+            let id = decode_expiry(j).context(&format!("error on {i}")).unwrap();
             assert_eq!(i, id);
         }
         for i in (u64::MAX - u16::MAX as u64)..u64::MAX {
             let j = encode_expiry(i);
-            let id = decode_expiry(j).context(format!("error on {i}")).unwrap();
+            let id = decode_expiry(j).context(&format!("error on {i}")).unwrap();
             assert_eq!(i, id);
         }
     }
