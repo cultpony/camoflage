@@ -1,15 +1,9 @@
-use std::{path::PathBuf, str::FromStr};
-
 use crate::{Result, Error};
 
 use crate::secretkey::SecretKey;
 
 fn parse_duration(s: &str) -> Result<chrono::Duration> {
     duration_str::parse_chrono(s).map_err(|e| Error::Other(e.to_string()))
-}
-
-fn parse_bytes(s: &str) -> Result<ubyte::ByteUnit> {
-    Ok(ubyte::ByteUnit::from_str(s)?)
 }
 
 #[derive(clap::Parser, Clone, Debug)]
@@ -63,31 +57,4 @@ pub struct Opts {
     /// This enables driving CAMO without the need for any specialized library.
     #[clap(long, env = "CAMO_SIGN_REQUEST_KEY")]
     pub sign_request_key: Option<String>,
-
-    /// The directory to store cache data into
-    /// 
-    /// If not specified no caching takes place
-    #[clap(long, env = "CAMO_CACHE_DIR")]
-    pub cache_dir: Option<PathBuf>,
-
-    /// Amount of disk space *should* be used
-    /// 
-    /// The GC process attempts to target this amount of disk usage but may use more
-    /// 
-    /// Default value is 5 Gigabyte
-    #[clap(long, env = "CAMO_CACHE_DIR_SIZE", default_value = "5G", parse(try_from_str = parse_bytes))]
-    pub cache_dir_size: ubyte::ByteUnit,
-
-    /// Amout of memory to use on a simple LRU cache ring
-    /// 
-    /// Default value is 500 Megabyte
-    #[clap(long, env = "CAMO_CACHE_DIR_SIZE", default_value = "500M", parse(try_from_str = parse_bytes))]
-    pub cache_mem_size: ubyte::ByteUnit,
-
-    /// If an entry reaches the given duration, it is evicted
-    /// regardless of it's cache status
-    /// 
-    /// Default is 1 Week
-    #[clap(long, env = "CAMO_CACHE_EXPIRE_AFTER", default_value = "1 week", parse(try_from_str = parse_duration))]
-    pub cache_expire_after: chrono::Duration,
 }

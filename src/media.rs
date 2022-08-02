@@ -25,11 +25,7 @@ pub fn is_svg(mime_type: Option<&HeaderValue>) -> bool {
     }
 }
 
-pub fn verify_data(data: &Bytes) -> bool {
-    verify_data_int(data).is_ok()
-}
-
-fn verify_data_int(data: &Bytes) -> Result<()> {
+pub fn verify_data(data: &Bytes) -> Result<()> {
     let format = image::guess_format(data)?;
     let mut datac = Vec::new();
     datac.extend_from_slice(data);

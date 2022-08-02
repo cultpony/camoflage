@@ -1,6 +1,5 @@
 pub use errors::*;
 use axum::body::Bytes;
-use axum::headers::{ContentType, HeaderMapExt};
 use axum::http::HeaderMap;
 use axum::http::StatusCode;
 use axum::Extension;
@@ -20,7 +19,6 @@ use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
 
 mod cli;
-pub mod diskcache;
 mod media;
 mod secretkey;
 mod errors;
@@ -166,7 +164,7 @@ async fn image_url_primary(
     Ok((status, headers, stream))
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct SafeUrl(url::Url);
 
 impl SafeUrl {
@@ -182,16 +180,20 @@ impl SafeUrl {
     }
 }
 
+impl std::fmt::Debug for SafeUrl {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("SafeUrl").field(&self.0.to_string()).finish()
+    }
+}
+
 #[derive(Clone)]
 pub struct ImageProxy {
     key: SecretKey,
     host: String,
-    insecure: bool,
     connect_timeout: Duration,
     timeout: Duration,
     max_redirect: usize,
     max_size: usize,
-    disk_cache: Option<diskcache::DiskCache>,
 }
 
 impl ImageProxy {
@@ -199,26 +201,14 @@ impl ImageProxy {
         Ok(Self {
             key: opts.secret_key.clone(),
             host: opts.external_domain.clone(),
-            insecure: opts.external_insecure,
             connect_timeout: opts.socket_timeout,
             timeout: opts.request_timeout,
             max_redirect: opts.max_redir.into(),
             max_size: opts.length_limit.try_into().unwrap(),
-            disk_cache: match &opts.cache_dir {
-                Some(cache_dir) => Some(
-                    diskcache::DiskCache::new(
-                        cache_dir.clone(),
-                        opts.cache_dir_size,
-                        opts.cache_mem_size,
-                        opts.cache_expire_after,
-                    )
-                    .await?,
-                ),
-                None => None,
-            },
         })
     }
 
+    #[cfg(test)]
     async fn sign(&self, image_url: &url::Url, expire: Option<u64>) -> String {
         self.key.sign_url(image_url, expire).await
     }
@@ -298,8 +288,8 @@ impl ImageProxy {
             return Ok((StatusCode::NOT_FOUND, HeaderMap::new(), Bytes::new()));
         }
         let client = reqwest::ClientBuilder::new()
-            .connect_timeout(self.connect_timeout.to_std()?)
-            .timeout(self.timeout.to_std()?)
+            .connect_timeout(self.connect_timeout.to_std().unwrap())
+            .timeout(self.timeout.to_std().unwrap())
             .redirect(Policy::limited(self.max_redirect))
             .build()?;
         let mut resp = match client.get(image_url.0.clone()).send().await {
@@ -311,8 +301,8 @@ impl ImageProxy {
         };
         let status = resp.status();
         let headers = resp.headers().clone();
-        let mime_type = resp.headers().get(reqwest::header::CONTENT_TYPE);
-        let bytes = if media::safe_mime_type(mime_type) {
+        let mime_type = resp.headers().get(reqwest::header::CONTENT_TYPE).cloned();
+        let bytes: Bytes = if media::safe_mime_type(mime_type.as_ref()) {
             let expected_size: usize = resp
                 .content_length()
                 .map(|x| x.try_into().unwrap())
@@ -334,12 +324,11 @@ impl ImageProxy {
             warn!("Image is unsafe mime type at {:?}", image_url);
             return Ok((StatusCode::NOT_FOUND, headers, Bytes::new()));
         };
+        if !media::is_svg(mime_type.as_ref()) {
+            media::verify_data(&bytes)
+                .with_context(|| format!("no valid media at {image_url:?}"))?;
+        }
         Ok((status, headers, bytes))
-    }
-
-    /// Clean cache of expired entries, freeing diskspace
-    async fn housekeeping(&self) -> Result<()> {
-        todo!()
     }
 }
 
@@ -348,7 +337,7 @@ mod test {
     use axum::{headers::HeaderMapExt, Extension};
     use chrono::Duration;
 
-    use crate::{cli::Opts, image_url_ext, ImageProxy, ImageUrlExt, SafeUrl};
+    use crate::{cli::Opts, image_url_ext, ImageProxy, ImageUrlExt, SafeUrl, errors::Context};
 
     pub async fn config() -> crate::Result<ImageProxy> {
         ImageProxy::new(&Opts {
@@ -366,10 +355,6 @@ mod test {
             external_domain: "camo.local".to_string(),
             external_insecure: false,
             sign_request_key: None,
-            cache_dir: None,
-            cache_dir_size: ubyte::ByteUnit::Byte(0),
-            cache_mem_size: ubyte::ByteUnit::Byte(0),
-            cache_expire_after: Duration::seconds(0),
         }).await
     }
 
@@ -405,7 +390,9 @@ mod test {
                 if (status == StatusCode::OK) {
                     println!("headers: {:?}", headers);
                     if !crate::media::is_svg(headers.get(reqwest::header::CONTENT_TYPE)) {
-                        assert!(crate::media::verify_data(&data), "Must be valid media");
+                        crate::media::verify_data(&data)
+                            .map_err(|e| -> crate::Error { e.into() })
+                            .context("must be valid media")?;
                     }
                 }
                 Ok(())
@@ -442,7 +429,7 @@ mod test {
     test_status_and_body!(test_404s_on_non_image_content_type; "https://github.com/atmos/cinderella/raw/master/bootstrap.sh" => 404, 0);
     test_status_and_body!(test_404s_on_connect_timeout; "http://10.0.0.1/foo.cgi" => 404, 0);
     test_status_and_body!(test_404s_on_environmental_excludes; "http://iphone.internal.example.org/foo.cgi" => 404, 0);
-    test_status_and_body!(test_follows_temporary_redirects; "https://httpbin.org/redirect-to?status_code=302&url=https%3A%2F%2Fhttpbin.org%2Fimage%2Fjpeg" => 200 ; |status, header, data| {
+    test_status_and_body!(test_follows_temporary_redirects; "https://httpbin.org/redirect-to?status_code=302&url=https%3A%2F%2Fhttpbin.org%2Fimage%2Fjpeg" => 200 ; |_status, _header, _data| {
         true
     });
     test_status_and_body!(test_request_from_self; "http://camo-localhost-test.herokuapp.com" => 404, 0);
