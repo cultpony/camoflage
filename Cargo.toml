@@ -14,7 +14,7 @@ base64 = "0.13.0"
 bytes = "*"
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "3.2", features = ["derive", "env"] }
-duration-str = "0.3"
+duration-str = "0.4"
 flexi_logger = { version = "0.23", features = ["use_chrono_for_offset"] }
 hex = "0.4.3"
 hmac = "0.12.1"
