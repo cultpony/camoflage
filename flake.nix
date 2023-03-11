@@ -18,6 +18,7 @@
       devShells.default = pkgs.mkShell {
         nativeBuildInputs =
             [
+              pkgs.cargo-nextest
               fenix.packages.${system}.stable.toolchain
             ];
       };
@@ -26,13 +27,22 @@
         (pkgs.makeRustPlatform {
           cargo = toolchain;
           rustc = toolchain;
+          withComponents = with pkgs; [
+            nixpkgs.cargo-nextest
+          ];
         }).buildRustPackage {
-          pname = "search_parser";
+          pname = "camoflage";
           version = "0.1.0";
 
           src = ./.;
 
           cargoLock.lockFile = ./Cargo.lock;
+
+          # disable networked tests
+          checkNoDefaultFeatures = true;
+          checkFeatures = [ ];
+
+          useNextest = true;
         };
     });
 }

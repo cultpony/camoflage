@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use crate::Error;
-use crate::{Result, Context};
+use crate::{Context, Result};
 use hmac::Hmac;
 use hmac::Mac;
 use sha1::Digest;
@@ -39,12 +39,12 @@ impl FromStr for SecretKey {
     type Err = crate::Error;
 
     fn from_str(s: &str) -> Result<Self> {
-        let _: Hmac<Sha1> =
-            Hmac::<Sha1>::new_from_slice(s.as_bytes())
-            .map_err(|e| -> Error { e.into() }).context("invalid key supplied")?;
-        let _: Hmac<Sha3> =
-            Hmac::<Sha3>::new_from_slice(s.as_bytes())
-            .map_err(|e| -> Error { e.into() }).context("invalid key supplied")?;
+        let _: Hmac<Sha1> = Hmac::<Sha1>::new_from_slice(s.as_bytes())
+            .map_err(|e| -> Error { e.into() })
+            .context("invalid key supplied")?;
+        let _: Hmac<Sha3> = Hmac::<Sha3>::new_from_slice(s.as_bytes())
+            .map_err(|e| -> Error { e.into() })
+            .context("invalid key supplied")?;
         Ok(SecretKey(s.to_string(), true))
     }
 }
@@ -150,8 +150,8 @@ impl SecretKey {
             .push(&url_encoded);
         if let Some(expire) = expire {
             url.path_segments_mut()
-            .unwrap()
-            .push(&encode_expiry(expire));
+                .unwrap()
+                .push(&encode_expiry(expire));
         }
         Ok(url)
     }
@@ -177,8 +177,8 @@ impl SecretKey {
         url.query_pairs_mut().append_pair("url", &url_encoded);
         if let Some(expire) = expire {
             url.path_segments_mut()
-            .unwrap()
-            .push(&encode_expiry(expire));
+                .unwrap()
+                .push(&encode_expiry(expire));
         }
         Ok(url)
     }

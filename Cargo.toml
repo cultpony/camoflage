@@ -8,8 +8,8 @@ authors = ["CULTPONY <mail@cult.horse>"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-axum = { version = "0.5", features = ["http2", "headers"] }
-axum-extra = { version = "0.3", features = ["typed-routing", "query"] }
+axum = { version = "0.6", features = ["http2", "headers"] }
+axum-extra = { version = "0.4", features = ["typed-routing", "query"] }
 base64 = "0.13.0"
 bytes = "*"
 chrono = { version = "0.4", features = ["serde"] }
@@ -19,6 +19,7 @@ flexi_logger = { version = "0.23", features = ["use_chrono_for_offset"] }
 hex = "0.4.3"
 hmac = "0.12.1"
 image = "0.24"
+ipnetwork = "0.20.0"
 lazy_static = "1.4.0"
 log = "0.4"
 reqwest = { version = "0.11", default-features = false, features = ["stream", "rustls-tls-native-roots"] }
@@ -34,3 +35,8 @@ url = { version = "2.3", features = ["serde"] }
 
 [dev-dependencies]
 tokio = { version = "*", features = ["test-util"] }
+
+[features]
+default = [ "net-tests" ]
+# If not enabled, will disable all network-related tests
+net-tests = []

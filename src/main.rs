@@ -1,4 +1,3 @@
-pub use errors::*;
 use axum::body::Bytes;
 use axum::http::HeaderMap;
 use axum::http::StatusCode;
@@ -10,6 +9,7 @@ use axum_extra::routing::TypedPath;
 use chrono::Duration;
 use clap::StructOpt;
 use cli::Opts;
+pub use errors::*;
 use flexi_logger::Duplicate;
 use log::*;
 use reqwest::redirect::Policy;
@@ -19,9 +19,9 @@ use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
 
 mod cli;
+mod errors;
 mod media;
 mod secretkey;
-mod errors;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -230,9 +230,11 @@ impl ImageProxy {
         expire: Option<&str>,
     ) -> Result<SafeUrl> {
         let image_url = match expire {
-            None => String::from_utf8(hex::decode(image_url.clone())
-                .map_err(|e| -> Error { e.into() })
-                .with_context(|| format!("could not parse digest string {image_url:?}"))?)?,
+            None => String::from_utf8(
+                hex::decode(image_url.clone())
+                    .map_err(|e| -> Error { e.into() })
+                    .with_context(|| format!("could not parse digest string {image_url:?}"))?,
+            )?,
             Some(_) => {
                 String::from_utf8(base64::decode_config(image_url, base64::URL_SAFE_NO_PAD)?)?
             }
@@ -337,7 +339,7 @@ mod test {
     use axum::{headers::HeaderMapExt, Extension};
     use chrono::Duration;
 
-    use crate::{cli::Opts, image_url_ext, ImageProxy, ImageUrlExt, SafeUrl, errors::Context};
+    use crate::{cli::Opts, errors::Context, image_url_ext, ImageProxy, ImageUrlExt, SafeUrl};
 
     pub async fn config() -> crate::Result<ImageProxy> {
         ImageProxy::new(&Opts {
@@ -355,7 +357,8 @@ mod test {
             external_domain: "camo.local".to_string(),
             external_insecure: false,
             sign_request_key: None,
-        }).await
+        })
+        .await
     }
 
     macro_rules! test_status_and_body {
@@ -371,6 +374,7 @@ mod test {
         };
 
         ($name:ident ; $url:expr => $status:expr; $body:expr) => {
+            #[cfg(feature = "net-tests")]
             #[tokio::test]
             async fn $name() -> crate::Result<()> {
                 let image_url = $url;

@@ -1,7 +1,8 @@
+use std::net::IpAddr;
+
 use axum::response::IntoResponse;
 use bytes::Bytes;
 use reqwest::StatusCode;
-
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -37,9 +38,27 @@ pub enum Error {
     Other(String),
     #[error("{0}: {1}")]
     WithContext(String, Box<Error>),
+
+    #[error("Host {0:?} was banned")]
+    HostBannedFromProxy(String),
+    #[error("Host {0:?} was banned due to it's IP")]
+    HostIPBannedFromProxy(IpAddr),
+    #[error("Host {0:?} was banned due to it's DNS resolved IP {1:?}")]
+    HostDNSIPBannedFromProxy(String, IpAddr),
 }
 
-pub trait Context{
+impl PartialEq for Error {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::HostBannedFromProxy(l0), Self::HostBannedFromProxy(r0)) => l0 == r0,
+            (Self::HostIPBannedFromProxy(l0), Self::HostIPBannedFromProxy(r0)) => l0 == r0,
+            (Self::HostDNSIPBannedFromProxy(l0, l1), Self::HostDNSIPBannedFromProxy(r0, r1)) => l0 == r0 && l1 == r1,
+            _ => false,
+        }
+    }
+}
+
+pub trait Context {
     fn context(self, c: &str) -> Self;
     fn with_context(self, c: impl Fn() -> String) -> Self;
 }
@@ -55,7 +74,7 @@ impl<T> Context for Result<T> {
     fn with_context(self, c: impl Fn() -> String) -> Self {
         match self {
             Ok(s) => Ok(s),
-            Err(e) => Err(Error::WithContext(c(), Box::new(e)))
+            Err(e) => Err(Error::WithContext(c(), Box::new(e))),
         }
     }
 }
@@ -63,8 +82,14 @@ impl<T> Context for Result<T> {
 impl IntoResponse for Error {
     fn into_response(self) -> axum::response::Response {
         match self {
-            Error::InvalidURLDigest => (StatusCode::GONE, Bytes::from("URL expired or invalid")).into_response(),
-            v => (StatusCode::INTERNAL_SERVER_ERROR,Bytes::from(v.to_string())).into_response(),
+            Error::InvalidURLDigest => {
+                (StatusCode::GONE, Bytes::from("URL expired or invalid")).into_response()
+            }
+            v => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Bytes::from(v.to_string()),
+            )
+                .into_response(),
         }
     }
 }
