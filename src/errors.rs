@@ -45,6 +45,9 @@ pub enum Error {
     HostIPBannedFromProxy(IpAddr),
     #[error("Host {0:?} was banned due to it's DNS resolved IP {1:?}")]
     HostDNSIPBannedFromProxy(String, IpAddr),
+
+    #[error("Secret Key given as file but file not present or not a file: {0:?}")]
+    FileKeyGivenFileError(String),
 }
 
 impl PartialEq for Error {

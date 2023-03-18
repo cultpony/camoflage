@@ -22,6 +22,12 @@
               fenix.packages.${system}.stable.toolchain
             ];
       };
+
+      nixosModules = rec {
+        camoflage = import ./service.nix self;
+        default = camoflage;
+      };
+      
       packages.default =
 
         (pkgs.makeRustPlatform {

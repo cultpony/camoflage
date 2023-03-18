@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::str::FromStr;
 
 use crate::Error;
@@ -39,6 +40,18 @@ impl FromStr for SecretKey {
     type Err = crate::Error;
 
     fn from_str(s: &str) -> Result<Self> {
+        let s = if s.starts_with("file://") && s != "file://" {
+            let s = &s["file://".len()..];
+            let path = PathBuf::from(s);
+            if !path.exists() {
+                return Err(crate::Error::FileKeyGivenFileError("path does not exist".to_string()))
+            }
+            if path.is_file() {
+                std::fs::read_to_string(path)?
+            } else {
+                return Err(crate::Error::FileKeyGivenFileError("path is not a file".to_string()))
+            }
+        } else { s.to_string() };
         let _: Hmac<Sha1> = Hmac::<Sha1>::new_from_slice(s.as_bytes())
             .map_err(|e| -> Error { e.into() })
             .context("invalid key supplied")?;

@@ -23,7 +23,7 @@ pub struct Opts {
     /// Signing Key to use for CAMO URLs
     ///
     /// You must set this even if you plan to use Sign Requests
-    #[clap(long)]
+    #[clap(long, env = "CAMO_SECRET_KEY")]
     pub secret_key: SecretKey,
     /// How large a response may get before aborting
     #[clap(long, default_value = "5242880")]
@@ -54,7 +54,10 @@ pub struct Opts {
     ///
     /// You will receive the signed URL as text/plain response.
     ///
-    /// This enables driving CAMO without the need for any specialized library.
+    /// This enables driving CAMO without the need for any specialized library or exposing
+    /// the signing key itself
+    /// 
+    /// WARNING: This feature is not well tested yet
     #[clap(long, env = "CAMO_SIGN_REQUEST_KEY")]
     pub sign_request_key: Option<String>,
 }
