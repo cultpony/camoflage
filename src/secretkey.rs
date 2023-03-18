@@ -5,6 +5,7 @@ use crate::Error;
 use crate::{Context, Result};
 use hmac::Hmac;
 use hmac::Mac;
+use log::info;
 use sha1::Digest;
 use sha1::Sha1;
 use sha3::Sha3_256 as Sha3;
@@ -47,7 +48,7 @@ impl FromStr for SecretKey {
                 return Err(crate::Error::FileKeyGivenFileError("path does not exist".to_string()))
             }
             if path.is_file() {
-                std::fs::read_to_string(path)?
+                std::fs::read_to_string(path)?.trim().to_string()
             } else {
                 return Err(crate::Error::FileKeyGivenFileError("path is not a file".to_string()))
             }
@@ -98,13 +99,16 @@ impl SecretKey {
         digest: &str,
         expire: Option<&str>,
     ) -> bool {
+        info!("Got URL {image_url:?} with digest {digest:?} and expiry {expire:?}");
         let expire = match expire.map(decode_expiry).transpose() {
             Err(_) => return false,
             Ok(v) => v,
         };
         let signed = self.sign_url(image_url, expire).await;
+        info!("signeable url is {signed:?}, digest is {digest:?}");
         let digest = Self::hash_digest(digest);
         let signed = Self::hash_digest(signed);
+        info!("Signed URL is {:?}, digest is {:?}", hex::encode(&signed), hex::encode(&digest));
         static_cmp(digest, signed)
             && expire
                 .map(|x| {
@@ -248,6 +252,8 @@ mod test {
 
         assert_eq!("7lj6h6sXhJnlX0DJ5sE8y0vzXNBDXCr9vm-_crBlilM", key.sign_url(&url::Url::from_str("http://40.media.tumblr.com/4574de09e1207dbb872f9c018adb57c8/tumblr_ngya1hYUBO1rq9ek2o1_1280.jpg")?, Some(160000)).await);
 
+        assert_eq!("1de377c386e80524f3a304071df6158b68b1546b", key.sign_url(&url::Url::from_str("https://pbs.twimg.com/media/FrgdySmaUAAbTUk.jpg")?, None).await);
+
         Ok(())
     }
 
@@ -274,6 +280,7 @@ mod test {
             "https://www.example.com/7lj6h6sXhJnlX0DJ5sE8y0vzXNBDXCr9vm-_crBlilM/AHEC?url=aHR0cDovLzQwLm1lZGlhLnR1bWJsci5jb20vNDU3NGRlMDllMTIwN2RiYjg3MmY5YzAxOGFkYjU3YzgvdHVtYmxyX25neWExaFlVQk8xcnE5ZWsybzFfMTI4MC5qcGc",
             key.sign_url_as_qurl(&url::Url::from_str("http://40.media.tumblr.com/4574de09e1207dbb872f9c018adb57c8/tumblr_ngya1hYUBO1rq9ek2o1_1280.jpg")?, Some(160000), "www.example.com").await?.as_str()
         );
+
         Ok(())
     }
 }

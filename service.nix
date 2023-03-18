@@ -92,13 +92,14 @@ in
 
       serviceConfig = {
         Restart = "on-failure";
-        ExecStart = ''${lib.getBin cfg.package}/bin/camoflage
-          --port ${toString cfg.port}
-          --external-domain ${cfg.external-domain}
-          --via-header ${cfg.via-header}
-          --secret-key file://${toString cfg.secret-key}
-          --length-limit ${toString cfg.length-limit}
-        '';
+        ExecStart = builtins.concatStringsSep " " [
+          "${lib.getBin cfg.package}/bin/camoflage"
+          "--port ${toString cfg.port}"
+          "--external-domain ${lib.escapeShellArg cfg.external-domain}"
+          "--via-header ${lib.escapeShellArg cfg.via-header}"
+          "--secret-key file://${lib.escapeShellArg (toString cfg.secret-key)}"
+          "--length-limit ${lib.escapeShellArg (toString cfg.length-limit)}"
+        ];
         StateDirectory = "camoflage";
         StateDirectoryMode = "0750";
 

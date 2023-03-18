@@ -233,7 +233,11 @@ impl ImageProxy {
             None => String::from_utf8(
                 hex::decode(image_url.clone())
                     .map_err(|e| -> Error { e.into() })
-                    .with_context(|| format!("could not parse digest string {image_url:?}"))?,
+                    .unwrap_or_else(|_| {
+                        trace!("non-encoded URL, check your library if it supprots encoding the URL too");
+                        image_url.as_bytes().to_vec()
+                    })
+                    //.with_context(|| format!("could not parse digest string {image_url:?}"))?,
             )?,
             Some(_) => {
                 String::from_utf8(base64::decode_config(image_url, base64::URL_SAFE_NO_PAD)?)?
@@ -242,7 +246,8 @@ impl ImageProxy {
         let image_url = image_url
             .parse()
             .map_err(|e: url::ParseError| -> Error { e.into() })
-            .with_context(|| format!("URL {} invalid", image_url))?;
+            .with_context(|| format!("URL {:?} invalid", image_url))?;
+        info!("Got URL {image_url:?} decoded from query, checking signature");
         if !self
             .key
             .verify_camo_signature(&image_url, digest, expire)
