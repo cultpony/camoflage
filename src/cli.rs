@@ -2,8 +2,8 @@ use crate::{Error, Result};
 
 use crate::secretkey::SecretKey;
 
-fn parse_duration(s: &str) -> Result<chrono::Duration> {
-    duration_str::parse_chrono(s).map_err(|e| Error::Other(e.to_string()))
+fn parse_duration(s: &str) -> Result<time::Duration> {
+    duration_str::parse_time(s).map_err(|e| Error::Other(e.to_string()))
 }
 
 #[derive(clap::Parser, Clone, Debug)]
@@ -32,11 +32,11 @@ pub struct Opts {
     #[clap(long, default_value = "4")]
     pub max_redir: u8,
     /// Time to wait for the server to establish any connection at all
-    #[clap(long, parse(try_from_str = parse_duration), default_value = "10s")]
-    pub socket_timeout: chrono::Duration,
+    #[clap(long, value_parser = parse_duration, default_value = "10s")]
+    pub socket_timeout: time::Duration,
     /// Time to wait for the server to complete a request
-    #[clap(long, parse(try_from_str = parse_duration), default_value = "5s")]
-    pub request_timeout: chrono::Duration,
+    #[clap(long, value_parser = parse_duration, default_value = "5s")]
+    pub request_timeout: time::Duration,
     /// Timing Allow Origin Header
     #[clap(long)]
     pub timing_allow_origin: Option<String>,

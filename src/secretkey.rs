@@ -65,7 +65,9 @@ impl FromStr for SecretKey {
 
 fn encode_expiry(expiry: u64) -> String {
     let expiry = expiry.to_le_bytes();
-    base64::encode_config(expiry, base64::URL_SAFE_NO_PAD)
+    use base64::Engine;
+    let engine = base64::engine::general_purpose::URL_SAFE_NO_PAD;
+    engine.encode(expiry)
         .trim_end_matches('A')
         .to_string()
 }
@@ -75,7 +77,9 @@ fn decode_expiry<S: Into<String>>(expiry: S) -> Result<u64> {
     while expiry.len() < 11 {
         expiry.push('A');
     }
-    let decoded = base64::decode_config(expiry, base64::URL_SAFE_NO_PAD)?;
+    use base64::Engine;
+    let engine = base64::engine::general_purpose::URL_SAFE_NO_PAD;
+    let decoded = engine.decode(expiry)?;
     let decoded: [u8; 8] = decoded.try_into().unwrap();
     Ok(u64::from_le_bytes(decoded))
 }
@@ -134,7 +138,9 @@ impl SecretKey {
                 let mut hm = Hmac::<Sha3>::new_from_slice(self.0.as_bytes()).expect("invalid key");
                 hm.update(image_url.as_str().as_bytes());
                 hm.update(&expire.to_le_bytes());
-                base64::encode_config(hm.finalize().into_bytes(), base64::URL_SAFE_NO_PAD)
+                use base64::Engine;
+                let engine = base64::engine::general_purpose::URL_SAFE_NO_PAD;
+                engine.encode(hm.finalize().into_bytes())
             }
             None => {
                 let mut hm = Hmac::<Sha1>::new_from_slice(self.0.as_bytes()).expect("invalid key");
@@ -157,7 +163,9 @@ impl SecretKey {
         let host: String = host.into();
         let mut url = url::Url::from_str(&format!("https://{host}/"))?;
         let url_encoded = if expire.is_some() {
-            base64::encode_config(image_url.as_str(), base64::URL_SAFE_NO_PAD)
+            use base64::Engine;
+            let engine = base64::engine::general_purpose::URL_SAFE_NO_PAD;
+            engine.encode(image_url.as_str())
         } else {
             hex::encode(image_url.as_str())
         };
@@ -186,7 +194,9 @@ impl SecretKey {
         let host: String = host.into();
         let mut url = url::Url::from_str(&format!("https://{host}/"))?;
         let url_encoded = if expire.is_some() {
-            base64::encode_config(image_url.as_str(), base64::URL_SAFE_NO_PAD)
+            use base64::Engine;
+            let engine = base64::engine::general_purpose::URL_SAFE_NO_PAD;
+            engine.encode(image_url.as_str())
         } else {
             image_url.to_string()
         };

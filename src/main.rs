@@ -6,15 +6,13 @@ use axum::Router;
 use axum_extra::extract::Query;
 use axum_extra::routing::RouterExt;
 use axum_extra::routing::TypedPath;
-use chrono::Duration;
-use clap::StructOpt;
 use cli::Opts;
 pub use errors::*;
-use flexi_logger::Duplicate;
 use log::*;
 use reqwest::redirect::Policy;
 use secretkey::SecretKey;
 use serde::Deserialize;
+use time::Duration;
 use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
 
@@ -25,11 +23,15 @@ mod secretkey;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let app = cli::Opts::parse();
+    let app = <cli::Opts as clap::Parser>::parse();
 
-    flexi_logger::Logger::try_with_env_or_str("info")?
-        .duplicate_to_stdout(Duplicate::All)
-        .start()?;
+    simplelog::CombinedLogger::init(vec![simplelog::TermLogger::new(
+        LevelFilter::Warn,
+        simplelog::Config::default(),
+        simplelog::TerminalMode::Mixed,
+        simplelog::ColorChoice::Auto,
+    )])
+    .unwrap();
 
     let proxy = ImageProxy::new(&app).await?;
 
@@ -240,7 +242,9 @@ impl ImageProxy {
                     //.with_context(|| format!("could not parse digest string {image_url:?}"))?,
             )?,
             Some(_) => {
-                String::from_utf8(base64::decode_config(image_url, base64::URL_SAFE_NO_PAD)?)?
+                use base64::Engine;
+                let engine = base64::engine::general_purpose::URL_SAFE_NO_PAD;
+                String::from_utf8(engine.decode(image_url)?)?
             }
         };
         let image_url = image_url
@@ -295,8 +299,8 @@ impl ImageProxy {
             return Ok((StatusCode::NOT_FOUND, HeaderMap::new(), Bytes::new()));
         }
         let client = reqwest::ClientBuilder::new()
-            .connect_timeout(self.connect_timeout.to_std().unwrap())
-            .timeout(self.timeout.to_std().unwrap())
+            .connect_timeout(self.connect_timeout.unsigned_abs())
+            .timeout(self.timeout.unsigned_abs())
             .redirect(Policy::limited(self.max_redirect))
             .build()?;
         let mut resp = match client.get(image_url.0.clone()).send().await {
@@ -342,7 +346,7 @@ impl ImageProxy {
 #[cfg(test)]
 mod test {
     use axum::{headers::HeaderMapExt, Extension};
-    use chrono::Duration;
+    use time::Duration;
 
     use crate::{cli::Opts, errors::Context, image_url_ext, ImageProxy, ImageUrlExt, SafeUrl};
 

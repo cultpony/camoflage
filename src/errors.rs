@@ -18,8 +18,6 @@ pub enum Error {
     HTTPClientError(#[from] reqwest::Error),
     #[error("Could not parse JSON: {0}")]
     JSONError(#[from] serde_json::Error),
-    #[error("Logger produced error: {0}")]
-    LoggingError(#[from] flexi_logger::FlexiLoggerError),
     #[error("Could not parse address: {0}")]
     AddrParseError(#[from] std::net::AddrParseError),
     #[error("Could not parse URL: {0}")]
