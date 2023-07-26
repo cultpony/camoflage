@@ -110,7 +110,7 @@ lazy_static::lazy_static! {
 
     static ref SAFE_MIME_TYPES: HashSet<&'static str> = {
         let mut m = HashSet::new();
-        const SAFE_MIME_TYPES_LIST: [&str; 43] = [
+        const SAFE_MIME_TYPES_LIST: [&str; 44] = [
             "image/bmp",
             "image/cgm",
             "image/g3fax",
@@ -153,7 +153,8 @@ lazy_static::lazy_static! {
             "image/x-rgb",
             "image/x-xbitmap",
             "image/x-xpixmap",
-            "image/x-xwindowdump"
+            "image/x-xwindowdump",
+            "application/octet-stream"
         ];
         for i in SAFE_MIME_TYPES_LIST {
             m.insert(i);
