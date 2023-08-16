@@ -26,7 +26,7 @@ serde_json = "1.0.104"
 sha1 = "0.10.5"
 sha3 = "0.10.8"
 simplelog = "0.12.1"
-thiserror = "1.0.44"
+thiserror = "1.0.46"
 time = { version = "0.3", features = ["serde", "parsing"] }
 tokio = { version = "1.31", features = ["full"] }
 tower = "0.4"
