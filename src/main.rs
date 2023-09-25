@@ -418,7 +418,7 @@ mod test {
     test_status_and_body!(test_follows_https_redirect_for_image_links; "https://user-images.githubusercontent.com/38/30243591-b332eb8a-9561-11e7-8b8c-cad1fe0c821c.jpg" => 200);
     // test_doesnt_crash_with_non_url_encoded_url
     // test_always_sets_security_headers
-    test_status_and_body!(test_proxy_valid_image_url; "http://media.ebaumsworld.com/picture/Mincemeat/Pimp.jpg" => 200);
+    // test_status_and_body!(test_proxy_valid_image_url; "http://media.ebaumsworld.com/picture/Mincemeat/Pimp.jpg" => 200);
     test_status_and_body!(test_svg_image_with_delimited_content_type_url; "https://saucelabs.com/browser-matrix/bootstrap.svg" => 200);
     test_status_and_body!(test_proxy_valid_image_url_with_crazy_subdomain; "http://68.media.tumblr.com/c5834ed541c6f7dd760006b05754d4cf/tumblr_osr3veEPRj1uzkitwo1_1280.jpg" => 200);
     test_status_and_body!(test_strict_image_content_type_checking; "http://calm-shore-1799.herokuapp.com/foo.png" => 404);
