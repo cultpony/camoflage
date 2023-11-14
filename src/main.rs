@@ -236,7 +236,7 @@ impl ImageProxy {
                 hex::decode(image_url.clone())
                     .map_err(|e| -> Error { e.into() })
                     .unwrap_or_else(|_| {
-                        trace!("non-encoded URL, check your library if it supprots encoding the URL too");
+                        trace!("non-encoded URL, check your library if it supports encoding the URL too");
                         image_url.as_bytes().to_vec()
                     })
                     //.with_context(|| format!("could not parse digest string {image_url:?}"))?,
