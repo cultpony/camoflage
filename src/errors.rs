@@ -1,8 +1,8 @@
 use std::net::IpAddr;
 
+use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use bytes::Bytes;
-use reqwest::StatusCode;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -53,7 +53,9 @@ impl PartialEq for Error {
         match (self, other) {
             (Self::HostBannedFromProxy(l0), Self::HostBannedFromProxy(r0)) => l0 == r0,
             (Self::HostIPBannedFromProxy(l0), Self::HostIPBannedFromProxy(r0)) => l0 == r0,
-            (Self::HostDNSIPBannedFromProxy(l0, l1), Self::HostDNSIPBannedFromProxy(r0, r1)) => l0 == r0 && l1 == r1,
+            (Self::HostDNSIPBannedFromProxy(l0, l1), Self::HostDNSIPBannedFromProxy(r0, r1)) => {
+                l0 == r0 && l1 == r1
+            }
             _ => false,
         }
     }

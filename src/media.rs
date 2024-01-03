@@ -1,17 +1,15 @@
 use std::collections::HashSet;
 
-use crate::{Result, Error};
-use axum::{body::Bytes, http::HeaderValue};
+use crate::{Error, Result};
+use axum::body::Bytes;
+use axum_extra::headers::ContentType;
 
-pub fn safe_mime_type(mime_type: Option<&HeaderValue>) -> bool {
+pub fn safe_mime_type(mime_type: Option<&ContentType>) -> bool {
     let mime_type = match mime_type {
         None => return false,
         Some(v) => v,
     };
-    match mime_type.to_str() {
-        Err(_) => false,
-        Ok(mime_type) => SAFE_MIME_TYPES.contains(&*mime_type.to_lowercase()),
-    }
+    SAFE_MIME_TYPES.contains(&*format!("{mime_type}"))
 }
 
 /// Returns Ok() if, and only if, the host is not on the banned list
@@ -20,27 +18,24 @@ pub fn is_host_safe(host: &str) -> Result<()> {
     if let Ok(ip) = host.parse() {
         for net in REJECT_IP_NETS.iter() {
             if net.contains(ip) {
-                return Err(Error::HostIPBannedFromProxy(ip))
+                return Err(Error::HostIPBannedFromProxy(ip));
             }
         }
     }
     for bnd_host in REJECT_HOSTNAMES.iter() {
         if host.ends_with(bnd_host) {
-            return Err(Error::HostBannedFromProxy(host.to_string()))
+            return Err(Error::HostBannedFromProxy(host.to_string()));
         }
     }
     todo!("resolve host")
 }
 
-pub fn is_svg(mime_type: Option<&HeaderValue>) -> bool {
+pub fn is_svg(mime_type: Option<&axum_extra::headers::ContentType>) -> bool {
     let mime_type = match mime_type {
         None => return false,
         Some(v) => v,
     };
-    match mime_type.to_str() {
-        Err(_) => false,
-        Ok(mime_type) => mime_type.to_lowercase() == "image/svg+xml",
-    }
+    format!("{mime_type}") == "image/svg+xml"
 }
 
 pub fn verify_data(data: &Bytes) -> Result<()> {
@@ -169,12 +164,13 @@ mod test {
 
     use crate::Error;
     use axum::http::HeaderValue;
+    use axum_extra::headers::ContentType;
     use std::str::FromStr;
 
     #[test]
     fn sanity_check_mime_bans() {
         assert!(
-            !super::safe_mime_type(Some(&HeaderValue::from_static("text/json"))),
+            !super::safe_mime_type(Some(&ContentType::json())),
             "text/json may not be a safe mime type"
         );
     }
@@ -182,17 +178,23 @@ mod test {
     #[test]
     fn sanity_check_offline_hostbans() {
         assert_eq!(
-            Err(Error::HostIPBannedFromProxy(IpAddr::from_str("127.0.0.1").unwrap())),
+            Err(Error::HostIPBannedFromProxy(
+                IpAddr::from_str("127.0.0.1").unwrap()
+            )),
             super::is_host_safe("127.0.0.1"),
             "127.0.0.1 is not safe but was allowed"
         );
         assert_eq!(
-            Err(Error::HostIPBannedFromProxy(IpAddr::from_str("127.0.7.1").unwrap())),
+            Err(Error::HostIPBannedFromProxy(
+                IpAddr::from_str("127.0.7.1").unwrap()
+            )),
             super::is_host_safe("127.0.7.1"),
             "127.0.7.1 is not safe but was allowed"
         );
         assert_eq!(
-            Err(Error::HostIPBannedFromProxy(IpAddr::from_str("fd31:f924:d60c:5914:26a9:4380:583b:4cca").unwrap())),
+            Err(Error::HostIPBannedFromProxy(
+                IpAddr::from_str("fd31:f924:d60c:5914:26a9:4380:583b:4cca").unwrap()
+            )),
             super::is_host_safe("fd31:f924:d60c:5914:26a9:4380:583b:4cca"),
             "fd31:f924:d60c:5914:26a9:4380:583b:4cca is not safe but was allowed"
         );
@@ -207,7 +209,9 @@ mod test {
             "localdomain is not safe but was allowed"
         );
         assert_eq!(
-            Err(Error::HostBannedFromProxy("localhost.localdomain".to_string())),
+            Err(Error::HostBannedFromProxy(
+                "localhost.localdomain".to_string()
+            )),
             super::is_host_safe("localhost.localdomain"),
             "localhost.localdomain is not safe but was allowed"
         );

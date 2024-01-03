@@ -1,3 +1,5 @@
+use std::net::SocketAddr;
+
 use axum::body::Bytes;
 use axum::http::HeaderMap;
 use axum::http::StatusCode;
@@ -13,6 +15,7 @@ use reqwest::redirect::Policy;
 use secretkey::SecretKey;
 use serde::Deserialize;
 use time::Duration;
+use tokio::net::TcpListener;
 use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
 
@@ -46,10 +49,11 @@ async fn main() -> Result<()> {
 
     info!("Build router, starting HTTP server");
 
-    axum::Server::bind(&format!("0.0.0.0:{}", app.port).parse()?)
-        .serve(http.into_make_service())
-        .await
-        .unwrap();
+    let listen_on: SocketAddr = format!("0.0.0.0:{}", app.port).parse()?;
+    let listener = TcpListener::bind(listen_on).await?;
+
+    axum::serve(listener, http).await?;
+
     Ok(())
 }
 
@@ -150,7 +154,7 @@ async fn image_url_primary(
     let (status, original_headers, stream) = image_proxy.retrieve_url(&image_url).await?;
     let mut headers = HeaderMap::new();
     {
-        use axum::headers::*;
+        use axum_extra::headers::*;
         headers.typed_insert(
             CacheControl::new()
                 .with_private()
@@ -311,8 +315,11 @@ impl ImageProxy {
             Ok(v) => v,
         };
         let status = resp.status();
+        let status = reqw_status_to_http1(status);
         let headers = resp.headers().clone();
-        let mime_type = resp.headers().get(reqwest::header::CONTENT_TYPE).cloned();
+        let headers = reqw_hm_to_http1(headers);
+        use axum_extra::headers::HeaderMapExt;
+        let mime_type = headers.typed_get::<axum_extra::headers::ContentType>();
         let bytes: Bytes = if media::safe_mime_type(mime_type.as_ref()) {
             let expected_size: usize = resp
                 .content_length()
@@ -343,9 +350,29 @@ impl ImageProxy {
     }
 }
 
+fn reqw_status_to_http1(status: reqwest::StatusCode) -> axum::http::StatusCode {
+    axum::http::StatusCode::from_u16(status.as_u16()).unwrap()
+}
+
+fn reqw_hm_to_http1(header_map: reqwest::header::HeaderMap) -> axum_extra::headers::HeaderMap {
+    axum_extra::headers::HeaderMap::from_iter(header_map.into_iter().filter_map(|(name, value)| {
+        match name {
+            Some(name) => {
+                let name =
+                    axum_extra::headers::HeaderName::from_bytes(name.as_str().as_bytes()).unwrap();
+                let value =
+                    axum_extra::headers::HeaderValue::from_str(value.to_str().unwrap()).unwrap();
+                Some((name, value))
+            }
+            None => None,
+        }
+    }))
+}
+
 #[cfg(test)]
 mod test {
-    use axum::{headers::HeaderMapExt, Extension};
+    use axum::Extension;
+    use axum_extra::headers::HeaderMapExt;
     use time::Duration;
 
     use crate::{cli::Opts, errors::Context, image_url_ext, ImageProxy, ImageUrlExt, SafeUrl};
@@ -392,7 +419,7 @@ mod test {
                 let digest = image_proxy.sign(&image_url.0, None).await;
 
                 use axum::http::StatusCode;
-                use axum::headers::HeaderMap;
+                use axum_extra::headers::HeaderMap;
                 use axum::body::Bytes;
                 let (status, headers, data): (StatusCode, HeaderMap, Bytes) = image_url_ext(ImageUrlExt{ digest, url: hex::encode(image_url.0.to_string()) }, Extension(image_proxy)).await?;
 
@@ -402,7 +429,7 @@ mod test {
 
                 if (status == StatusCode::OK) {
                     println!("headers: {:?}", headers);
-                    if !crate::media::is_svg(headers.get(reqwest::header::CONTENT_TYPE)) {
+                    if !crate::media::is_svg(headers.typed_get::<axum_extra::headers::ContentType>().as_ref()) {
                         crate::media::verify_data(&data)
                             .map_err(|e| -> crate::Error { e.into() })
                             .context("must be valid media")?;
@@ -450,7 +477,7 @@ mod test {
     //});
     test_status_and_body!(test_request_from_self; "http://camo-localhost-test.herokuapp.com" => 404, 0);
     test_status_and_body!(test_404s_send_cache_headers; "http://example.org/" => 404 ; |status: StatusCode, headers: HeaderMap, data: Bytes| {
-        use axum::headers;
+        use axum_extra::headers;
         use axum::http::*;
         assert_eq!(data.len(), 0, "Data must be empty");
         assert_eq!(status, StatusCode::NOT_FOUND, "Must not be anything but NOT_FOUND Status");

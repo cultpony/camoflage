@@ -19,8 +19,12 @@
         nativeBuildInputs =
             [
               pkgs.cargo-nextest
+              pkgs.cargo-outdated
               fenix.packages.${system}.stable.toolchain
-            ];
+            ] ++ (if system == "aarch64-darwin" then [
+              pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
+              pkgs.libiconv
+            ] else []);
       };
 
       nixosModules = rec {
