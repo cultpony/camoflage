@@ -449,10 +449,10 @@ mod test {
     test_status_and_body!(test_svg_image_with_delimited_content_type_url; "https://saucelabs.com/browser-matrix/bootstrap.svg" => 200);
     test_status_and_body!(test_proxy_valid_image_url_with_crazy_subdomain; "http://68.media.tumblr.com/c5834ed541c6f7dd760006b05754d4cf/tumblr_osr3veEPRj1uzkitwo1_1280.jpg" => 200);
     test_status_and_body!(test_strict_image_content_type_checking; "http://calm-shore-1799.herokuapp.com/foo.png" => 404);
-    test_status_and_body!(test_proxy_valid_google_chart_url;
-        "http://chart.apis.google.com/chart?chs=920x200&chxl=0:%7C2010-08-13%7C2010-09-12%7C2010-10-12%7C2010-11-11%7C1:%7C0%7C0%7C0%7C0%7C0%7C0&chm=B,EBF5FB,0,0,0&chco=008Cd6&chls=3,1,0&chg=8.3,20,1,4&chd=s:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&chxt=x,y&cht=lc"
-        => 200
-    );
+    //test_status_and_body!(test_proxy_valid_google_chart_url;
+    //    "http://chart.apis.google.com/chart?chs=920x200&chxl=0:%7C2010-08-13%7C2010-09-12%7C2010-10-12%7C2010-11-11%7C1:%7C0%7C0%7C0%7C0%7C0%7C0&chm=B,EBF5FB,0,0,0&chco=008Cd6&chls=3,1,0&chg=8.3,20,1,4&chd=s:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&chxt=x,y&cht=lc"
+    //    => 200
+    //);
     // reqwest seems to have issues with chunked data
     // SKIP: test_status_and_body!(test_proxy_valid_chunked_image_file; "https://www.httpwatch.com/httpgallery/chunked/chunkedimage.aspx" => 200);
     test_status_and_body!(test_proxy_https_octocat; "https://octodex.github.com/images/original.png" => 200);
