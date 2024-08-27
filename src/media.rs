@@ -43,8 +43,8 @@ pub fn verify_data(data: &Bytes) -> Result<()> {
     let mut datac = Vec::new();
     datac.extend_from_slice(data);
     let mut data = std::io::Cursor::new(datac);
-    let mut reader = image::io::Reader::with_format(&mut data, format).with_guessed_format()?;
-    let mut limits = image::io::Limits::default();
+    let mut reader = image::ImageReader::with_format(&mut data, format).with_guessed_format()?;
+    let mut limits = image::Limits::default();
     limits.max_image_height = Some(100_000);
     limits.max_image_width = Some(100_000);
     limits.max_alloc = Some(512_000_000);
@@ -163,7 +163,6 @@ mod test {
     use std::net::IpAddr;
 
     use crate::Error;
-    use axum::http::HeaderValue;
     use axum_extra::headers::ContentType;
     use std::str::FromStr;
 
