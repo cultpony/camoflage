@@ -28,7 +28,7 @@ sha3 = "0.10.8"
 simplelog = "0.12.2"
 thiserror = "1.0.61"
 time = { version = "0.3", features = ["serde", "parsing"] }
-tokio = { version = "1.38", features = ["full"] }
+tokio = { version = "1.40", features = ["full"] }
 tower = "0.5"
 tower-http = { version = "0.5", features = ["full"] }
 url = { version = "2.5", features = ["serde"] }
