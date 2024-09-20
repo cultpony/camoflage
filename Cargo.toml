@@ -30,7 +30,7 @@ thiserror = "1.0.61"
 time = { version = "0.3", features = ["serde", "parsing"] }
 tokio = { version = "1.38", features = ["full"] }
 tower = "0.5"
-tower-http = { version = "0.5", features = ["full"] }
+tower-http = { version = "0.6", features = ["full"] }
 url = { version = "2.5", features = ["serde"] }
 
 [dev-dependencies]
