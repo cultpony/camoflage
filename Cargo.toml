@@ -17,7 +17,7 @@ duration-str = { version = "0.11", default-features = false, features = ["time",
 hex = "0.4.3"
 hmac = "0.12.1"
 image = { version = "0.25", default-features = false, features = [ "default-formats", "rayon" ] }
-ipnetwork = "0.20.0"
+ipnetwork = "0.21.1"
 lazy_static = "1.5.0"
 log = "0.4"
 reqwest = { version = "0.12", default-features = false, features = ["stream", "rustls-tls-native-roots"] }
