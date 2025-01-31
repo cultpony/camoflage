@@ -9,7 +9,7 @@ authors = ["CULTPONY <mail@cult.horse>"]
 
 [dependencies]
 axum = { version = "0.7", features = ["http2"] }
-axum-extra = { version = "0.9", features = ["typed-routing", "query", "typed-header"] }
+axum-extra = { version = "0.11", features = ["typed-routing", "query", "typed-header"] }
 base64 = "0.22"
 bytes = "*"
 clap = { version = "4.5", features = ["derive", "env"] }
