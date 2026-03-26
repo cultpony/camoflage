@@ -3,7 +3,6 @@ use std::net::SocketAddr;
 use axum::Extension;
 use axum::Router;
 use axum_extra::routing::RouterExt;
-use log::LevelFilter;
 use tokio::net::TcpListener;
 use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
@@ -23,13 +22,12 @@ pub use errors::*;
 async fn main() -> Result<()> {
     let app = <cli::Opts as clap::Parser>::parse();
 
-    simplelog::CombinedLogger::init(vec![simplelog::TermLogger::new(
-        LevelFilter::Warn,
-        simplelog::Config::default(),
-        simplelog::TerminalMode::Mixed,
-        simplelog::ColorChoice::Auto,
-    )])
-    .unwrap();
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("warn")),
+        )
+        .init();
 
     let proxy = proxy::ImageProxy::new(&app).await?;
 
@@ -44,7 +42,7 @@ async fn main() -> Result<()> {
         )))
         .layer(ServiceBuilder::new().layer(TraceLayer::new_for_http()));
 
-    log::info!("Build router, starting HTTP server");
+    tracing::info!("Build router, starting HTTP server");
 
     let listen_on: SocketAddr = format!("0.0.0.0:{}", app.port).parse()?;
     let listener = TcpListener::bind(listen_on).await?;

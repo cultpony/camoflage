@@ -1,7 +1,7 @@
 use axum::body::Bytes;
 use axum::http::HeaderMap;
 use axum::http::StatusCode;
-use log::{error, info, trace, warn};
+use tracing::{error, info, instrument, trace, warn};
 use reqwest::redirect::Policy;
 use time::Duration;
 
@@ -53,6 +53,7 @@ impl ImageProxy {
     }
 
     /// Verifies the digest matches the URL, and if so, returns a validated SafeUrl.
+    #[instrument(skip(self))]
     pub(crate) async fn verify_digest(
         &self,
         digest: &str,
@@ -90,6 +91,7 @@ impl ImageProxy {
     }
 
     /// Fetches the image from the remote URL, applying SSRF guards and MIME/size validation.
+    #[instrument(skip(self))]
     pub(crate) async fn retrieve_url(
         &self,
         image_url: &SafeUrl,

@@ -5,7 +5,7 @@ use crate::Error;
 use crate::{Context, Result};
 use hmac::Hmac;
 use hmac::Mac;
-use log::info;
+use tracing::info;
 use sha1::Digest;
 use sha1::Sha1;
 use sha3::Sha3_256 as Sha3;

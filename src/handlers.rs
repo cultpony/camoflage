@@ -6,6 +6,8 @@ use axum_extra::extract::Query;
 use axum_extra::routing::TypedPath;
 use serde::Deserialize;
 
+use tracing::instrument;
+
 use crate::errors::*;
 use crate::proxy::ImageProxy;
 use crate::secretkey;
@@ -21,6 +23,7 @@ pub(crate) struct SignImageUrl {
     pub(crate) expire: u64,
 }
 
+#[instrument(skip(image_proxy))]
 pub(crate) async fn sign_image_url(
     SignImageUrl {
         url,
@@ -91,6 +94,7 @@ pub(crate) struct ImageUrlFull {
     pub(crate) expire: String,
 }
 
+#[instrument(skip(image_proxy))]
 pub(crate) async fn image_url_primary(
     ImageUrlFull {
         digest,
