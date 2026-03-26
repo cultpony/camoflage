@@ -1,0 +1,38 @@
+[graph]
+# Targets to check. If empty, all targets are checked.
+targets = []
+
+[licenses]
+# Accepted licenses
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "ISC",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "OpenSSL",
+    "Zlib",
+    "CC0-1.0",
+]
+# Confidence threshold for detecting licenses
+confidence-threshold = 0.8
+
+[bans]
+# Deny multiple versions of the same crate
+multiple-versions = "warn"
+# Deny wildcard dependencies
+wildcards = "deny"
+
+[advisories]
+# Deny crates with security vulnerabilities
+version = 2
+ignore = []
+
+[sources]
+# Allow crates from crates.io
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
