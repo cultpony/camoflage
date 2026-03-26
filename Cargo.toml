@@ -20,7 +20,7 @@ image = { version = "0.25", default-features = false, features = [ "default-form
 ipnetwork = "0.21.1"
 lazy_static = "1.5.0"
 log = "0.4"
-reqwest = { version = "0.12", default-features = false, features = ["stream", "rustls-tls-native-roots"] }
+reqwest = { version = "0.13", default-features = false, features = ["stream", "rustls"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.140"
 sha1 = "0.10.6"
