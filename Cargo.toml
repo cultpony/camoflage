@@ -8,12 +8,12 @@ authors = ["CULTPONY <mail@cult.horse>"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-axum = { version = "0.7", features = ["http2"] }
-axum-extra = { version = "0.9", features = ["typed-routing", "query", "typed-header"] }
+axum = { version = "0.8", features = ["http2"] }
+axum-extra = { version = "0.10", features = ["typed-routing", "query", "typed-header"] }
 base64 = "0.22"
 bytes = "*"
 clap = { version = "4.5", features = ["derive", "env"] }
-duration-str = { version = "0.12", default-features = false, features = ["time", "serde"] }
+duration-str = { version = "0.21", default-features = false, features = ["time", "serde"] }
 hex = "0.4.3"
 hmac = "0.12.1"
 image = { version = "0.25", default-features = false, features = [ "default-formats", "rayon" ] }
@@ -22,13 +22,13 @@ lazy_static = "1.5.0"
 log = "0.4"
 reqwest = { version = "0.12", default-features = false, features = ["stream", "rustls-tls-native-roots"] }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0.139"
+serde_json = "1.0.140"
 sha1 = "0.10.6"
 sha3 = "0.10.8"
 simplelog = "0.12.2"
-thiserror = "2.0.11"
+thiserror = "2.0.12"
 time = { version = "0.3", features = ["serde", "parsing"] }
-tokio = { version = "1.43", features = ["full"] }
+tokio = { version = "1.45", features = ["full"] }
 tower = "0.5"
 tower-http = { version = "0.6", features = ["full"] }
 url = { version = "2.5", features = ["serde"] }

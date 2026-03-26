@@ -61,7 +61,7 @@ async fn main() -> Result<()> {
 pub struct SignRequestKey(Option<String>);
 
 #[derive(TypedPath, Deserialize)]
-#[typed_path("/sign/:sign_request_key/:url/:expire")]
+#[typed_path("/sign/{sign_request_key}/{url}/{expire}")]
 struct SignImageUrl {
     url: url::Url,
     sign_request_key: String,
@@ -89,7 +89,7 @@ async fn sign_image_url(
 }
 
 #[derive(TypedPath, Deserialize)]
-#[typed_path("/:digest")]
+#[typed_path("/{digest}")]
 struct ImageUrl {
     digest: String,
 }
@@ -109,7 +109,7 @@ async fn image_url(
 }
 
 #[derive(TypedPath, Deserialize)]
-#[typed_path("/:digest/:url")]
+#[typed_path("/{digest}/{url}")]
 struct ImageUrlExt {
     digest: String,
     url: String,
@@ -131,7 +131,7 @@ async fn image_url_ext(
 }
 
 #[derive(TypedPath, Deserialize)]
-#[typed_path("/:digest/:url/:expire")]
+#[typed_path("/{digest}/{url}/{expire}")]
 struct ImageUrlFull {
     digest: String,
     url: String,
