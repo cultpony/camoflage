@@ -15,6 +15,7 @@ mod media;
 mod proxy;
 mod safe_url;
 mod secretkey;
+mod telemetry;
 
 pub use errors::*;
 
@@ -22,12 +23,7 @@ pub use errors::*;
 async fn main() -> Result<()> {
     let app = <cli::Opts as clap::Parser>::parse();
 
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("warn")),
-        )
-        .init();
+    telemetry::init_tracing();
 
     let proxy = proxy::ImageProxy::new(&app).await?;
 
