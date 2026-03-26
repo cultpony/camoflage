@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::sync::LazyLock;
 
 use crate::{Error, Result};
 use axum::body::Bytes;
@@ -53,110 +54,98 @@ pub fn verify_data(data: &Bytes) -> Result<()> {
     Ok(())
 }
 
-lazy_static::lazy_static! {
-    static ref REJECT_HOSTNAMES: HashSet<&'static str> = {
-        let mut m = HashSet::new();
-        const REJECT_HOSTNAMES_LIST: [&str; 3] = [
-                "localhost",
-                "localdomain",
-                "localhost.localdomain",
-        ];
-        for i in REJECT_HOSTNAMES_LIST {
-            m.insert(i);
-        }
-        m
-    };
+static REJECT_HOSTNAMES: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
+    [
+        "localhost",
+        "localdomain",
+        "localhost.localdomain",
+    ]
+    .into_iter()
+    .collect()
+});
 
-    static ref REJECT_IP_NETS: [ipnetwork::IpNetwork; 14] = {
-        let mut m = Vec::with_capacity(14);
-        const REJECT_IP_NETS_LIST: [&str; 14] = [
-            // ipv4 loopback
-            "127.0.0.0/8",
-            // ipv4 link local
-            "169.254.0.0/16",
-            // ipv4 rfc1918
-            "10.0.0.0/8",
-            "172.16.0.0/12",
-            "192.168.0.0/16",
-            // unspecified address
-            "::/128",
-            // ipv6 loopback
-            "::1/128",
-            // ipv4 mapped onto ipv6
-            "::ffff:0:0/96",
-            // discard prefix
-            "100::/64",
-            // addresses reserved for documentation and example code rfc3849
-            "2001:db8::/32",
-            // ipv6 ULA. Encompasses rfc4193 (fd00::/8)
-            "fc00::/7",
-            // ipv6 link local
-            "fe80::/10",
-            // old ipv6 site local
-            "fec0::/10",
-            // global multicast
-            "ff00::/8",
-        ];
-        for i in REJECT_IP_NETS_LIST {
-            m.push(i.parse().unwrap());
-        }
-        m.try_into().unwrap()
-    };
+static REJECT_IP_NETS: LazyLock<[ipnetwork::IpNetwork; 14]> = LazyLock::new(|| {
+    [
+        // ipv4 loopback
+        "127.0.0.0/8",
+        // ipv4 link local
+        "169.254.0.0/16",
+        // ipv4 rfc1918
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "192.168.0.0/16",
+        // unspecified address
+        "::/128",
+        // ipv6 loopback
+        "::1/128",
+        // ipv4 mapped onto ipv6
+        "::ffff:0:0/96",
+        // discard prefix
+        "100::/64",
+        // addresses reserved for documentation and example code rfc3849
+        "2001:db8::/32",
+        // ipv6 ULA. Encompasses rfc4193 (fd00::/8)
+        "fc00::/7",
+        // ipv6 link local
+        "fe80::/10",
+        // old ipv6 site local
+        "fec0::/10",
+        // global multicast
+        "ff00::/8",
+    ]
+    .map(|s| s.parse().unwrap())
+});
 
-    static ref SAFE_MIME_TYPES: HashSet<&'static str> = {
-        let mut m = HashSet::new();
-        const SAFE_MIME_TYPES_LIST: [&str; 44] = [
-            "image/bmp",
-            "image/cgm",
-            "image/g3fax",
-            "image/gif",
-            "image/ief",
-            "image/jp2",
-            "image/jpeg",
-            "image/jpg",
-            "image/pict",
-            "image/png",
-            "image/prs.btif",
-            "image/svg+xml",
-            "image/tiff",
-            "image/vnd.adobe.photoshop",
-            "image/vnd.djvu",
-            "image/vnd.dwg",
-            "image/vnd.dxf",
-            "image/vnd.fastbidsheet",
-            "image/vnd.fpx",
-            "image/vnd.fst",
-            "image/vnd.fujixerox.edmics-mmr",
-            "image/vnd.fujixerox.edmics-rlc",
-            "image/vnd.microsoft.icon",
-            "image/vnd.ms-modi",
-            "image/vnd.net-fpx",
-            "image/vnd.wap.wbmp",
-            "image/vnd.xiff",
-            "image/webp",
-            "image/x-cmu-raster",
-            "image/x-cmx",
-            "image/x-icon",
-            "image/x-macpaint",
-            "image/x-pcx",
-            "image/x-pict",
-            "image/x-portable-anymap",
-            "image/x-portable-bitmap",
-            "image/x-portable-graymap",
-            "image/x-portable-pixmap",
-            "image/x-quicktime",
-            "image/x-rgb",
-            "image/x-xbitmap",
-            "image/x-xpixmap",
-            "image/x-xwindowdump",
-            "application/octet-stream"
-        ];
-        for i in SAFE_MIME_TYPES_LIST {
-            m.insert(i);
-        }
-        m
-    };
-}
+static SAFE_MIME_TYPES: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
+    [
+        "image/bmp",
+        "image/cgm",
+        "image/g3fax",
+        "image/gif",
+        "image/ief",
+        "image/jp2",
+        "image/jpeg",
+        "image/jpg",
+        "image/pict",
+        "image/png",
+        "image/prs.btif",
+        "image/svg+xml",
+        "image/tiff",
+        "image/vnd.adobe.photoshop",
+        "image/vnd.djvu",
+        "image/vnd.dwg",
+        "image/vnd.dxf",
+        "image/vnd.fastbidsheet",
+        "image/vnd.fpx",
+        "image/vnd.fst",
+        "image/vnd.fujixerox.edmics-mmr",
+        "image/vnd.fujixerox.edmics-rlc",
+        "image/vnd.microsoft.icon",
+        "image/vnd.ms-modi",
+        "image/vnd.net-fpx",
+        "image/vnd.wap.wbmp",
+        "image/vnd.xiff",
+        "image/webp",
+        "image/x-cmu-raster",
+        "image/x-cmx",
+        "image/x-icon",
+        "image/x-macpaint",
+        "image/x-pcx",
+        "image/x-pict",
+        "image/x-portable-anymap",
+        "image/x-portable-bitmap",
+        "image/x-portable-graymap",
+        "image/x-portable-pixmap",
+        "image/x-quicktime",
+        "image/x-rgb",
+        "image/x-xbitmap",
+        "image/x-xpixmap",
+        "image/x-xwindowdump",
+        "application/octet-stream",
+    ]
+    .into_iter()
+    .collect()
+});
 
 #[cfg(test)]
 mod test {

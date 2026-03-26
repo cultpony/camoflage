@@ -431,7 +431,6 @@ dependencies = [
  "hmac",
  "image",
  "ipnetwork",
- "lazy_static",
  "opentelemetry",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
