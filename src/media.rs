@@ -204,4 +204,83 @@ mod test {
             "localhost.localdomain is not safe but was allowed"
         );
     }
+
+    #[test]
+    fn test_safe_mime_types_positive() {
+        for mime in &[
+            "image/png",
+            "image/jpeg",
+            "image/gif",
+            "image/webp",
+            "image/svg+xml",
+            "image/bmp",
+            "image/tiff",
+            "application/octet-stream",
+        ] {
+            let ct: ContentType = mime.parse().unwrap();
+            assert!(super::safe_mime_type(Some(&ct)), "{mime} should be safe");
+        }
+    }
+
+    #[test]
+    fn test_safe_mime_types_negative() {
+        for mime in &["text/html", "application/javascript", "text/plain", "video/mp4"] {
+            let ct: ContentType = mime.parse().unwrap();
+            assert!(!super::safe_mime_type(Some(&ct)), "{mime} should not be safe");
+        }
+        assert!(!super::safe_mime_type(None), "None should not be safe");
+    }
+
+    #[test]
+    fn test_is_svg_positive() {
+        let ct: ContentType = "image/svg+xml".parse().unwrap();
+        assert!(super::is_svg(Some(&ct)));
+    }
+
+    #[test]
+    fn test_is_svg_negative() {
+        let ct: ContentType = "image/png".parse().unwrap();
+        assert!(!super::is_svg(Some(&ct)));
+        assert!(!super::is_svg(None));
+    }
+
+    #[test]
+    fn test_verify_data_valid_png() {
+        // Generate a minimal 1×1 PNG using the image crate itself
+        let img = image::RgbImage::new(1, 1);
+        let mut buf = Vec::new();
+        img.write_to(
+            &mut std::io::Cursor::new(&mut buf),
+            image::ImageFormat::Png,
+        )
+        .unwrap();
+        super::verify_data(&axum::body::Bytes::from(buf)).expect("should accept valid PNG");
+    }
+
+    #[test]
+    fn test_verify_data_invalid() {
+        let garbage = axum::body::Bytes::from_static(b"this is not an image at all!!!!");
+        assert!(super::verify_data(&garbage).is_err());
+    }
+
+    #[test]
+    fn test_reject_ip_nets_rfc1918() {
+        for ip in &["10.0.0.1", "172.16.0.1", "172.31.255.255", "192.168.1.1"] {
+            assert!(
+                super::is_host_safe(ip).is_err(),
+                "{ip} should be banned (RFC1918)"
+            );
+        }
+    }
+
+    #[test]
+    fn test_reject_ip_nets_link_local() {
+        assert!(super::is_host_safe("169.254.0.1").is_err(), "link-local should be banned");
+        assert!(super::is_host_safe("fe80::1").is_err(), "IPv6 link-local should be banned");
+    }
+
+    #[test]
+    fn test_reject_ip_nets_ipv6_loopback() {
+        assert!(super::is_host_safe("::1").is_err(), "::1 should be banned");
+    }
 }

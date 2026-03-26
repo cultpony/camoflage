@@ -61,3 +61,68 @@ pub struct Opts {
     #[clap(long, env = "CAMO_SIGN_REQUEST_KEY")]
     pub sign_request_key: Option<String>,
 }
+
+#[cfg(test)]
+mod test {
+    use clap::Parser;
+
+    use super::Opts;
+
+    #[test]
+    fn test_default_values() {
+        let opts = Opts::try_parse_from(["camoflage", "--secret-key", "testkey"]).unwrap();
+        assert_eq!(opts.port, 8081);
+        assert_eq!(opts.external_domain, "localhost");
+        assert!(!opts.external_insecure);
+        assert_eq!(opts.via_header, "Camoflage Asset Proxy");
+        assert_eq!(opts.length_limit, 5242880);
+        assert_eq!(opts.max_redir, 4);
+        assert_eq!(opts.hostname, "unknown");
+        assert!(!opts.keep_alive);
+        assert!(opts.proxy.is_none());
+        assert!(opts.sign_request_key.is_none());
+        assert!(opts.timing_allow_origin.is_none());
+    }
+
+    #[test]
+    fn test_missing_required_key_errors() {
+        let result = Opts::try_parse_from(["camoflage"]);
+        assert!(result.is_err(), "should fail without --secret-key");
+    }
+
+    #[test]
+    fn test_duration_parsing() {
+        let opts =
+            Opts::try_parse_from(["camoflage", "--secret-key", "k", "--socket-timeout", "500ms"])
+                .unwrap();
+        assert_eq!(opts.socket_timeout, time::Duration::milliseconds(500));
+
+        let opts =
+            Opts::try_parse_from(["camoflage", "--secret-key", "k", "--socket-timeout", "2m"])
+                .unwrap();
+        assert_eq!(opts.socket_timeout, time::Duration::seconds(120));
+    }
+
+    #[test]
+    fn test_optional_flags() {
+        let opts = Opts::try_parse_from([
+            "camoflage",
+            "--secret-key",
+            "k",
+            "--sign-request-key",
+            "signkey",
+            "--timing-allow-origin",
+            "*",
+            "--proxy",
+            "http://proxy:3128",
+            "--external-insecure",
+            "--keep-alive",
+        ])
+        .unwrap();
+        assert_eq!(opts.sign_request_key.as_deref(), Some("signkey"));
+        assert_eq!(opts.timing_allow_origin.as_deref(), Some("*"));
+        assert_eq!(opts.proxy.as_deref(), Some("http://proxy:3128"));
+        assert!(opts.external_insecure);
+        assert!(opts.keep_alive);
+    }
+}

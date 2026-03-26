@@ -96,3 +96,61 @@ impl IntoResponse for Error {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use axum::response::IntoResponse;
+
+    use super::*;
+
+    #[test]
+    fn test_context_wraps_error() {
+        let result: Result<()> = Err(Error::Other("inner".to_string()));
+        let wrapped = result.context("outer context");
+        let display = wrapped.unwrap_err().to_string();
+        assert!(display.contains("outer context"), "display: {display}");
+        assert!(display.contains("inner"), "display: {display}");
+    }
+
+    #[test]
+    fn test_with_context_wraps_error() {
+        let result: Result<()> = Err(Error::Other("inner".to_string()));
+        let wrapped = result.with_context(|| "lazy context".to_string());
+        let display = wrapped.unwrap_err().to_string();
+        assert!(display.contains("lazy context"), "display: {display}");
+    }
+
+    #[test]
+    fn test_context_passes_through_ok() {
+        let result: Result<i32> = Ok(42);
+        assert_eq!(result.context("unused").unwrap(), 42);
+    }
+
+    #[test]
+    fn test_into_response_invalid_digest_is_410() {
+        let resp = Error::InvalidURLDigest.into_response();
+        assert_eq!(resp.status(), axum::http::StatusCode::GONE);
+    }
+
+    #[test]
+    fn test_into_response_other_error_is_500() {
+        let resp = Error::Other("boom".to_string()).into_response();
+        assert_eq!(resp.status(), axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[test]
+    fn test_partial_eq_host_banned() {
+        let a = Error::HostBannedFromProxy("localhost".to_string());
+        let b = Error::HostBannedFromProxy("localhost".to_string());
+        let c = Error::HostBannedFromProxy("other".to_string());
+        assert_eq!(a, b);
+        assert_ne!(a, c);
+    }
+
+    #[test]
+    fn test_partial_eq_cross_variant_is_false() {
+        let a = Error::InvalidURLDigest;
+        let b = Error::Other("x".to_string());
+        assert_ne!(a, b);
+    }
+}

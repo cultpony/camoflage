@@ -174,3 +174,145 @@ impl ImageProxy {
         Ok((status, headers, bytes))
     }
 }
+
+#[cfg(test)]
+mod test {
+    use axum::http::StatusCode;
+    use time::Duration;
+
+    use crate::cli::Opts;
+    use crate::errors::Error;
+    use crate::safe_url::SafeUrl;
+
+    use super::ImageProxy;
+
+    async fn config() -> crate::Result<ImageProxy> {
+        ImageProxy::new(&Opts {
+            port: 8081,
+            via_header: "Camoflage Asset Proxy".to_string(),
+            secret_key: crate::secretkey::SecretKey::new("test-secret-key"),
+            length_limit: 5242880,
+            max_redir: 4,
+            socket_timeout: Duration::milliseconds(5000),
+            request_timeout: Duration::milliseconds(5000),
+            timing_allow_origin: None,
+            hostname: "localhost".to_string(),
+            keep_alive: false,
+            proxy: None,
+            external_domain: "camo.local".to_string(),
+            external_insecure: false,
+            sign_request_key: None,
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_verify_digest_valid_v1() {
+        let proxy = config().await.unwrap();
+        let url: url::Url = "https://example.com/image.png".parse().unwrap();
+        let digest = proxy.sign(&url, None).await;
+        let hex_url = hex::encode(url.as_str());
+        let result = proxy.verify_digest(&digest, hex_url, None).await;
+        assert!(result.is_ok(), "valid V1 digest should verify: {result:?}");
+    }
+
+    #[tokio::test]
+    async fn test_verify_digest_invalid_signature() {
+        let proxy = config().await.unwrap();
+        let url: url::Url = "https://example.com/image.png".parse().unwrap();
+        let hex_url = hex::encode(url.as_str());
+        let result = proxy.verify_digest("deadbeefdeadbeef", hex_url, None).await;
+        assert!(
+            matches!(result, Err(Error::InvalidURLDigest)),
+            "wrong digest should return InvalidURLDigest"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verify_digest_valid_v2() {
+        let proxy = config().await.unwrap();
+        let url: url::Url = "https://example.com/image.png".parse().unwrap();
+        // Use a far-future expiry (year 2100)
+        let expire: u64 = 4102444800;
+        let digest = proxy.sign(&url, Some(expire)).await;
+        let b64_url = {
+            use base64::Engine;
+            base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(url.as_str())
+        };
+        // sign_url_as_url builds the full path: /{digest}/{b64_url}/{expire_encoded}
+        let signed_url = proxy
+            .key
+            .sign_url_as_url(&url, Some(expire), "camo.local")
+            .await
+            .unwrap();
+        let expire_seg = signed_url
+            .path_segments()
+            .unwrap()
+            .nth(2)
+            .unwrap()
+            .to_string();
+        let result = proxy.verify_digest(&digest, b64_url, Some(&expire_seg)).await;
+        assert!(result.is_ok(), "valid V2 digest should verify: {result:?}");
+    }
+
+    #[tokio::test]
+    async fn test_verify_digest_expired_v2() {
+        let proxy = config().await.unwrap();
+        let url: url::Url = "https://example.com/image.png".parse().unwrap();
+        // Expiry in the past (Unix timestamp 1)
+        let expire: u64 = 1;
+        let digest = proxy.sign(&url, Some(expire)).await;
+        let b64_url = {
+            use base64::Engine;
+            base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(url.as_str())
+        };
+        // encode_expiry(1) matches what the real code uses
+        let expire_encoded = {
+            use base64::Engine;
+            let mut buf = [0u8; 8];
+            buf[..8].copy_from_slice(&expire.to_le_bytes());
+            let encoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(buf);
+            encoded.trim_end_matches('A').to_string()
+        };
+        let result = proxy
+            .verify_digest(&digest, b64_url, Some(&expire_encoded))
+            .await;
+        assert!(
+            matches!(result, Err(Error::InvalidURLDigest)),
+            "expired V2 url should return InvalidURLDigest, got: {result:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_retrieve_url_rejects_no_host() {
+        let proxy = config().await.unwrap();
+        let url = unsafe { SafeUrl::trust_url("data:image/png,abc".parse().unwrap()) };
+        let (status, _, _) = proxy.retrieve_url(&url).await.unwrap();
+        assert_eq!(status, StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_retrieve_url_rejects_credentials() {
+        let proxy = config().await.unwrap();
+        let url =
+            unsafe { SafeUrl::trust_url("http://user:pass@example.com/img.png".parse().unwrap()) };
+        let (status, _, _) = proxy.retrieve_url(&url).await.unwrap();
+        assert_eq!(status, StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_retrieve_url_rejects_non_http_scheme() {
+        let proxy = config().await.unwrap();
+        let url = unsafe { SafeUrl::trust_url("ftp://example.com/img.png".parse().unwrap()) };
+        let (status, _, _) = proxy.retrieve_url(&url).await.unwrap();
+        assert_eq!(status, StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_retrieve_url_rejects_loopback_ip() {
+        let proxy = config().await.unwrap();
+        let url = unsafe { SafeUrl::trust_url("http://127.0.0.1/img.png".parse().unwrap()) };
+        let (status, _, _) = proxy.retrieve_url(&url).await.unwrap();
+        assert_eq!(status, StatusCode::NOT_FOUND);
+    }
+}

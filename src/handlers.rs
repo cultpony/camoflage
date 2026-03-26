@@ -201,6 +201,85 @@ mod test {
         };
     }
 
+    // --- Signing endpoint unit tests (no network) ---
+
+    #[tokio::test]
+    async fn test_sign_endpoint_valid_key() {
+        let proxy = config().await.unwrap();
+        let (status, body) = super::sign_image_url(
+            super::SignImageUrl {
+                url: "https://example.com/image.png".parse().unwrap(),
+                sign_request_key: "mykey".to_string(),
+                expire: 0,
+            },
+            Extension(proxy),
+            Extension(super::SignRequestKey(Some("mykey".to_string()))),
+        )
+        .await
+        .unwrap();
+        assert_eq!(status, axum::http::StatusCode::OK);
+        assert!(!body.is_empty(), "signed URL should be non-empty");
+    }
+
+    #[tokio::test]
+    async fn test_sign_endpoint_wrong_key() {
+        let proxy = config().await.unwrap();
+        let (status, _) = super::sign_image_url(
+            super::SignImageUrl {
+                url: "https://example.com/image.png".parse().unwrap(),
+                sign_request_key: "wrongkey".to_string(),
+                expire: 0,
+            },
+            Extension(proxy),
+            Extension(super::SignRequestKey(Some("rightkey".to_string()))),
+        )
+        .await
+        .unwrap();
+        assert_eq!(status, axum::http::StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn test_sign_endpoint_no_key_configured() {
+        // When no sign request key is configured, all signing requests are allowed.
+        let proxy = config().await.unwrap();
+        let (status, body) = super::sign_image_url(
+            super::SignImageUrl {
+                url: "https://example.com/image.png".parse().unwrap(),
+                sign_request_key: "anything".to_string(),
+                expire: 0,
+            },
+            Extension(proxy),
+            Extension(super::SignRequestKey(None)),
+        )
+        .await
+        .unwrap();
+        assert_eq!(status, axum::http::StatusCode::OK);
+        assert!(!body.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_sign_endpoint_with_expiry() {
+        let proxy = config().await.unwrap();
+        let (status, body) = super::sign_image_url(
+            super::SignImageUrl {
+                url: "https://example.com/image.png".parse().unwrap(),
+                sign_request_key: "key".to_string(),
+                expire: 9999999999,
+            },
+            Extension(proxy),
+            Extension(super::SignRequestKey(Some("key".to_string()))),
+        )
+        .await
+        .unwrap();
+        assert_eq!(status, axum::http::StatusCode::OK);
+        // V2 signed URL has 4 path segments (host/digest/b64url/expire)
+        let segment_count = body.trim_matches('/').split('/').count();
+        assert!(
+            segment_count >= 4,
+            "V2 URL should contain expire segment, got: {body}"
+        );
+    }
+
     // test_proxy_localhost_test_server
     // test_proxy_survives_redirect_without_location
     test_status_and_body!(test_follows_https_redirect_for_image_links; "https://user-images.githubusercontent.com/38/30243591-b332eb8a-9561-11e7-8b8c-cad1fe0c821c.jpg" => 200);
