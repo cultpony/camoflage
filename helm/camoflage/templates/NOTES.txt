@@ -1,0 +1,12 @@
+Camoflage has been deployed.
+
+Service URL (within cluster):
+  http://{{ include "camoflage.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+
+To proxy an image, sign a URL using the /sign/ endpoint or a compatible
+CAMO client library, then request:
+  GET /<digest>/<hex-encoded-url>
+  GET /<digest>/<b64-encoded-url>/<expiry>
+
+To check the logs:
+  kubectl logs -l app.kubernetes.io/name={{ include "camoflage.name" . }} -n {{ .Release.Namespace }}

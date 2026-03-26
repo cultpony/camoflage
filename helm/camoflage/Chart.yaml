@@ -1,0 +1,12 @@
+apiVersion: v2
+name: camoflage
+description: CAMO-compatible image proxy server
+type: application
+version: 0.1.0
+appVersion: "0.1.1"
+keywords:
+  - image-proxy
+  - camo
+  - security
+sources:
+  - https://github.com/cultpony/camoflage
