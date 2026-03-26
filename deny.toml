@@ -16,6 +16,9 @@ allow = [
     "OpenSSL",
     "Zlib",
     "CC0-1.0",
+    "AGPL-3.0-or-later",
+    "NCSA",
+    "CDLA-Permissive-2.0",
 ]
 # Confidence threshold for detecting licenses
 confidence-threshold = 0.8
@@ -29,7 +32,11 @@ wildcards = "deny"
 [advisories]
 # Deny crates with security vulnerabilities
 version = 2
-ignore = []
+ignore = [
+    # paste is unmaintained (RUSTSEC-2024-0436), transitive dep via image -> ravif -> rav1e -> paste
+    # No safe upgrade available; ignoring until image crate drops rav1e or rav1e replaces paste.
+    "RUSTSEC-2024-0436",
+]
 
 [sources]
 # Allow crates from crates.io

@@ -1,6 +1,12 @@
+
+_cargo_binstall_check := require("cargo-binstall")
+
+default:
+  just -l
+
 # Install required cargo tools
 setup:
-    cargo install cargo-audit cargo-deny cargo-outdated cargo-nextest
+    cargo binstall cargo-audit cargo-deny cargo-outdated cargo-nextest
 
 # Run all linters
 lint: fmt-check clippy audit deny outdated

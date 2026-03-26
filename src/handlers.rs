@@ -1,7 +1,7 @@
+use axum::Extension;
 use axum::body::Bytes;
 use axum::http::HeaderMap;
 use axum::http::StatusCode;
-use axum::Extension;
 use axum_extra::extract::Query;
 use axum_extra::routing::TypedPath;
 use serde::Deserialize;
@@ -129,20 +129,17 @@ pub(crate) async fn image_url_primary(
 #[cfg(test)]
 mod test {
     use axum::Extension;
-    use axum_extra::headers::HeaderMapExt;
+    use std::str::FromStr;
     use time::Duration;
 
     use crate::cli::Opts;
-    use crate::errors::Context;
-    use crate::handlers::{image_url_ext, ImageUrlExt};
     use crate::proxy::ImageProxy;
-    use crate::safe_url::SafeUrl;
 
     pub async fn config() -> crate::Result<ImageProxy> {
         ImageProxy::new(&Opts {
             port: 8081,
             via_header: "Camoflage Asset Proxy".to_string(),
-            secret_key: crate::secretkey::SecretKey::new("0x24FEEDFACEDEADBEEFCAFE"),
+            secret_key: crate::secretkey::SecretKey::from_str("0x24FEEDFACEDEADBEEFCAFE").unwrap(),
             length_limit: 5242880,
             max_redir: 10,
             socket_timeout: Duration::milliseconds(10000),

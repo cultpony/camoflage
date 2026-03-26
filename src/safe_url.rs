@@ -9,6 +9,7 @@ impl SafeUrl {
     /// If the URL provided is a local network URL or localhost, the constructed SafeUrl
     /// type is invalid and callers are permitted to panic or cause UB.
     ///
+    #[allow(dead_code)]
     pub(crate) unsafe fn trust_url(u: url::Url) -> Self {
         Self(u)
     }

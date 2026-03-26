@@ -15,6 +15,7 @@ pub fn safe_mime_type(mime_type: Option<&ContentType>) -> bool {
 
 /// Returns Ok() if, and only if, the host is not on the banned list
 /// and *all* IPs it resolves to are not part of the banned set.
+#[allow(dead_code)]
 pub fn is_host_safe(host: &str) -> Result<()> {
     if let Ok(ip) = host.parse() {
         for net in REJECT_IP_NETS.iter() {
@@ -55,13 +56,9 @@ pub fn verify_data(data: &Bytes) -> Result<()> {
 }
 
 static REJECT_HOSTNAMES: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
-    [
-        "localhost",
-        "localdomain",
-        "localhost.localdomain",
-    ]
-    .into_iter()
-    .collect()
+    ["localhost", "localdomain", "localhost.localdomain"]
+        .into_iter()
+        .collect()
 });
 
 static REJECT_IP_NETS: LazyLock<[ipnetwork::IpNetwork; 14]> = LazyLock::new(|| {
@@ -224,9 +221,17 @@ mod test {
 
     #[test]
     fn test_safe_mime_types_negative() {
-        for mime in &["text/html", "application/javascript", "text/plain", "video/mp4"] {
+        for mime in &[
+            "text/html",
+            "application/javascript",
+            "text/plain",
+            "video/mp4",
+        ] {
             let ct: ContentType = mime.parse().unwrap();
-            assert!(!super::safe_mime_type(Some(&ct)), "{mime} should not be safe");
+            assert!(
+                !super::safe_mime_type(Some(&ct)),
+                "{mime} should not be safe"
+            );
         }
         assert!(!super::safe_mime_type(None), "None should not be safe");
     }
@@ -249,11 +254,8 @@ mod test {
         // Generate a minimal 1×1 PNG using the image crate itself
         let img = image::RgbImage::new(1, 1);
         let mut buf = Vec::new();
-        img.write_to(
-            &mut std::io::Cursor::new(&mut buf),
-            image::ImageFormat::Png,
-        )
-        .unwrap();
+        img.write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
+            .unwrap();
         super::verify_data(&axum::body::Bytes::from(buf)).expect("should accept valid PNG");
     }
 
@@ -275,8 +277,14 @@ mod test {
 
     #[test]
     fn test_reject_ip_nets_link_local() {
-        assert!(super::is_host_safe("169.254.0.1").is_err(), "link-local should be banned");
-        assert!(super::is_host_safe("fe80::1").is_err(), "IPv6 link-local should be banned");
+        assert!(
+            super::is_host_safe("169.254.0.1").is_err(),
+            "link-local should be banned"
+        );
+        assert!(
+            super::is_host_safe("fe80::1").is_err(),
+            "IPv6 link-local should be banned"
+        );
     }
 
     #[test]

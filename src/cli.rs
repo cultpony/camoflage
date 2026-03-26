@@ -56,7 +56,7 @@ pub struct Opts {
     ///
     /// This enables driving CAMO without the need for any specialized library or exposing
     /// the signing key itself
-    /// 
+    ///
     /// WARNING: This feature is not well tested yet
     #[clap(long, env = "CAMO_SIGN_REQUEST_KEY")]
     pub sign_request_key: Option<String>,
@@ -92,9 +92,14 @@ mod test {
 
     #[test]
     fn test_duration_parsing() {
-        let opts =
-            Opts::try_parse_from(["camoflage", "--secret-key", "k", "--socket-timeout", "500ms"])
-                .unwrap();
+        let opts = Opts::try_parse_from([
+            "camoflage",
+            "--secret-key",
+            "k",
+            "--socket-timeout",
+            "500ms",
+        ])
+        .unwrap();
         assert_eq!(opts.socket_timeout, time::Duration::milliseconds(500));
 
         let opts =

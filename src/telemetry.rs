@@ -10,8 +10,7 @@ use tracing_subscriber::util::SubscriberInitExt;
 /// When the `otel` feature is compiled in **and** `OTEL_EXPORTER_OTLP_ENDPOINT`
 /// is set at runtime, traces are also exported to that OTLP/gRPC endpoint.
 pub fn init_tracing() {
-    let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("warn"));
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("warn"));
 
     let fmt_layer = tracing_subscriber::fmt::layer();
 
@@ -31,8 +30,8 @@ pub fn init_tracing() {
                 .with_batch_exporter(exporter)
                 .build();
 
-            let otel_layer = tracing_opentelemetry::layer()
-                .with_tracer(tracer_provider.tracer("camoflage"));
+            let otel_layer =
+                tracing_opentelemetry::layer().with_tracer(tracer_provider.tracer("camoflage"));
 
             tracing_subscriber::registry()
                 .with(env_filter)

@@ -5,13 +5,13 @@ use crate::Error;
 use crate::{Context, Result};
 use hmac::Hmac;
 use hmac::Mac;
-use tracing::info;
 use sha1::Digest;
 use sha1::Sha1;
 use sha3::Sha3_256 as Sha3;
+use tracing::info;
 
 #[derive(Clone)]
-pub struct SecretKey(String, bool);
+pub struct SecretKey(String);
 
 pub fn static_cmp(a: Vec<u8>, b: Vec<u8>) -> bool {
     assert!(
@@ -45,21 +45,27 @@ impl FromStr for SecretKey {
             let s = &s["file://".len()..];
             let path = PathBuf::from(s);
             if !path.exists() {
-                return Err(crate::Error::FileKeyGivenFileError("path does not exist".to_string()))
+                return Err(crate::Error::FileKeyGivenFileError(
+                    "path does not exist".to_string(),
+                ));
             }
             if path.is_file() {
                 std::fs::read_to_string(path)?.trim().to_string()
             } else {
-                return Err(crate::Error::FileKeyGivenFileError("path is not a file".to_string()))
+                return Err(crate::Error::FileKeyGivenFileError(
+                    "path is not a file".to_string(),
+                ));
             }
-        } else { s.to_string() };
+        } else {
+            s.to_string()
+        };
         let _: Hmac<Sha1> = Hmac::<Sha1>::new_from_slice(s.as_bytes())
             .map_err(|e| -> Error { e.into() })
             .context("invalid key supplied")?;
         let _: Hmac<Sha3> = Hmac::<Sha3>::new_from_slice(s.as_bytes())
             .map_err(|e| -> Error { e.into() })
             .context("invalid key supplied")?;
-        Ok(SecretKey(s.to_string(), true))
+        Ok(SecretKey(s.to_string()))
     }
 }
 
@@ -67,9 +73,7 @@ fn encode_expiry(expiry: u64) -> String {
     let expiry = expiry.to_le_bytes();
     use base64::Engine;
     let engine = base64::engine::general_purpose::URL_SAFE_NO_PAD;
-    engine.encode(expiry)
-        .trim_end_matches('A')
-        .to_string()
+    engine.encode(expiry).trim_end_matches('A').to_string()
 }
 
 fn decode_expiry<S: Into<String>>(expiry: S) -> Result<u64> {
@@ -85,14 +89,6 @@ fn decode_expiry<S: Into<String>>(expiry: S) -> Result<u64> {
 }
 
 impl SecretKey {
-    pub fn new<S: Into<String>>(key: S) -> Self {
-        Self(key.into(), true)
-    }
-
-    /// Disable using shae3 for signing URLs with expiry (the V2 URLs)
-    pub fn disable_sha3(&mut self) {
-        self.1 = false
-    }
     /// Returns true if the given URL matches the digest and expiry data
     /// If no expiry data is given, normal CAMO signature is used, otherwise the version is determined
     /// from the digest data.
@@ -112,7 +108,11 @@ impl SecretKey {
         info!("signeable url is {signed:?}, digest is {digest:?}");
         let digest = Self::hash_digest(digest);
         let signed = Self::hash_digest(signed);
-        info!("Signed URL is {:?}, digest is {:?}", hex::encode(&signed), hex::encode(&digest));
+        info!(
+            "Signed URL is {:?}, digest is {:?}",
+            hex::encode(&signed),
+            hex::encode(&digest)
+        );
         static_cmp(digest, signed)
             && expire
                 .map(|x| {
@@ -180,42 +180,13 @@ impl SecretKey {
         }
         Ok(url)
     }
-
-    /// Sign URL and construct the final URL to be used.
-    ///
-    /// The signed URL will use the Camo Query Format
-    pub async fn sign_url_as_qurl(
-        &self,
-        image_url: &url::Url,
-        expire: Option<u64>,
-        host: impl Into<String>,
-    ) -> Result<url::Url> {
-        let sign = self.sign_url(image_url, expire).await;
-        let host: String = host.into();
-        let mut url = url::Url::from_str(&format!("https://{host}/"))?;
-        let url_encoded = if expire.is_some() {
-            use base64::Engine;
-            let engine = base64::engine::general_purpose::URL_SAFE_NO_PAD;
-            engine.encode(image_url.as_str())
-        } else {
-            image_url.to_string()
-        };
-        url.path_segments_mut().unwrap().push(sign.as_str());
-        url.query_pairs_mut().append_pair("url", &url_encoded);
-        if let Some(expire) = expire {
-            url.path_segments_mut()
-                .unwrap()
-                .push(&encode_expiry(expire));
-        }
-        Ok(url)
-    }
 }
 
 #[cfg(test)]
 mod test {
     use std::str::FromStr;
 
-    use crate::secretkey::{decode_expiry, encode_expiry, SecretKey};
+    use crate::secretkey::{SecretKey, decode_expiry, encode_expiry};
     use crate::{Context, Result};
 
     #[test]
@@ -262,7 +233,14 @@ mod test {
 
         assert_eq!("7lj6h6sXhJnlX0DJ5sE8y0vzXNBDXCr9vm-_crBlilM", key.sign_url(&url::Url::from_str("http://40.media.tumblr.com/4574de09e1207dbb872f9c018adb57c8/tumblr_ngya1hYUBO1rq9ek2o1_1280.jpg")?, Some(160000)).await);
 
-        assert_eq!("1de377c386e80524f3a304071df6158b68b1546b", key.sign_url(&url::Url::from_str("https://pbs.twimg.com/media/FrgdySmaUAAbTUk.jpg")?, None).await);
+        assert_eq!(
+            "1de377c386e80524f3a304071df6158b68b1546b",
+            key.sign_url(
+                &url::Url::from_str("https://pbs.twimg.com/media/FrgdySmaUAAbTUk.jpg")?,
+                None
+            )
+            .await
+        );
 
         Ok(())
     }
@@ -279,16 +257,6 @@ mod test {
         assert_eq!(
             "https://www.example.com/7lj6h6sXhJnlX0DJ5sE8y0vzXNBDXCr9vm-_crBlilM/aHR0cDovLzQwLm1lZGlhLnR1bWJsci5jb20vNDU3NGRlMDllMTIwN2RiYjg3MmY5YzAxOGFkYjU3YzgvdHVtYmxyX25neWExaFlVQk8xcnE5ZWsybzFfMTI4MC5qcGc/AHEC",
             key.sign_url_as_url(&url::Url::from_str("http://40.media.tumblr.com/4574de09e1207dbb872f9c018adb57c8/tumblr_ngya1hYUBO1rq9ek2o1_1280.jpg")?, Some(160000), "www.example.com").await?.as_str()
-        );
-
-        assert_eq!(
-            "https://www.example.com/3608e93ba99430a7fb28344e910330004ad51b84?url=http%3A%2F%2F40.media.tumblr.com%2F4574de09e1207dbb872f9c018adb57c8%2Ftumblr_ngya1hYUBO1rq9ek2o1_1280.jpg",
-            key.sign_url_as_qurl(&url::Url::from_str("http://40.media.tumblr.com/4574de09e1207dbb872f9c018adb57c8/tumblr_ngya1hYUBO1rq9ek2o1_1280.jpg")?, None, "www.example.com").await?.as_str()
-        );
-
-        assert_eq!(
-            "https://www.example.com/7lj6h6sXhJnlX0DJ5sE8y0vzXNBDXCr9vm-_crBlilM/AHEC?url=aHR0cDovLzQwLm1lZGlhLnR1bWJsci5jb20vNDU3NGRlMDllMTIwN2RiYjg3MmY5YzAxOGFkYjU3YzgvdHVtYmxyX25neWExaFlVQk8xcnE5ZWsybzFfMTI4MC5qcGc",
-            key.sign_url_as_qurl(&url::Url::from_str("http://40.media.tumblr.com/4574de09e1207dbb872f9c018adb57c8/tumblr_ngya1hYUBO1rq9ek2o1_1280.jpg")?, Some(160000), "www.example.com").await?.as_str()
         );
 
         Ok(())

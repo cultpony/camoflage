@@ -1,9 +1,9 @@
 use axum::body::Bytes;
 use axum::http::HeaderMap;
 use axum::http::StatusCode;
-use tracing::{error, info, instrument, trace, warn};
 use reqwest::redirect::Policy;
 use time::Duration;
+use tracing::{error, info, instrument, trace, warn};
 
 use crate::cli::Opts;
 use crate::convert::{reqw_hm_to_http1, reqw_status_to_http1};
@@ -178,6 +178,7 @@ impl ImageProxy {
 #[cfg(test)]
 mod test {
     use axum::http::StatusCode;
+    use std::str::FromStr;
     use time::Duration;
 
     use crate::cli::Opts;
@@ -190,7 +191,7 @@ mod test {
         ImageProxy::new(&Opts {
             port: 8081,
             via_header: "Camoflage Asset Proxy".to_string(),
-            secret_key: crate::secretkey::SecretKey::new("test-secret-key"),
+            secret_key: crate::secretkey::SecretKey::from_str("test-secret-key").unwrap(),
             length_limit: 5242880,
             max_redir: 4,
             socket_timeout: Duration::milliseconds(5000),
@@ -251,7 +252,9 @@ mod test {
             .nth(2)
             .unwrap()
             .to_string();
-        let result = proxy.verify_digest(&digest, b64_url, Some(&expire_seg)).await;
+        let result = proxy
+            .verify_digest(&digest, b64_url, Some(&expire_seg))
+            .await;
         assert!(result.is_ok(), "valid V2 digest should verify: {result:?}");
     }
 
