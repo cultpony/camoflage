@@ -4,6 +4,7 @@ use std::str::FromStr;
 use crate::Error;
 use crate::{Context, Result};
 use hmac::Hmac;
+use hmac::KeyInit;
 use hmac::Mac;
 use sha1::Digest;
 use sha1::Sha1;
@@ -19,7 +20,7 @@ pub fn static_cmp(a: Vec<u8>, b: Vec<u8>) -> bool {
         "Hash Size mismatch is not allowed to occur"
     );
     a.into_iter()
-        .zip(b.into_iter())
+        .zip(b)
         .map(|(a, b)| (a ^ b) as u64)
         .sum::<u64>()
         == 0
