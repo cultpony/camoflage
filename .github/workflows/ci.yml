@@ -81,4 +81,4 @@ jobs:
         with:
           tool: cargo-outdated
       - name: Run cargo outdated
-        run: cargo outdated --exit-code 1
+        run: cargo outdated --exit-code 1 --depth 1
