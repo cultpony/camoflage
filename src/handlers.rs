@@ -132,12 +132,12 @@ mod test {
     use std::str::FromStr;
     use time::Duration;
 
+    use super::{ImageUrlExt, image_url_ext};
     use crate::cli::Opts;
+    use crate::errors::Context;
     use crate::proxy::ImageProxy;
     use crate::safe_url::SafeUrl;
-    use crate::errors::Context;
     use axum_extra::headers::HeaderMapExt;
-    use super::{image_url_ext, ImageUrlExt};
 
     pub async fn config() -> crate::Result<ImageProxy> {
         ImageProxy::new(&Opts {
