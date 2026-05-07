@@ -36,6 +36,8 @@ ignore = [
     # paste is unmaintained (RUSTSEC-2024-0436), transitive dep via image -> ravif -> rav1e -> paste
     # No safe upgrade available; ignoring until image crate drops rav1e or rav1e replaces paste.
     "RUSTSEC-2024-0436",
+    # ravif dep that also can't be upgraded
+    "RUSTSEC-2026-0105",
 ]
 
 [sources]
