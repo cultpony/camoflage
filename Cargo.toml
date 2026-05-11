@@ -19,7 +19,7 @@ hex = "0.4.3"
 hmac = "0.13.0"
 image = { version = "0.25", default-features = false, features = [ "default-formats", "rayon" ] }
 ipnetwork = "0.21.1"
-opentelemetry = { version = "0.31.0", optional = true }
+opentelemetry = { version = "0.32.0", optional = true }
 opentelemetry-otlp = { version = "0.31.1", default-features = false, features = ["grpc-tonic", "trace"], optional = true }
 opentelemetry_sdk = { version = "0.31.0", features = ["rt-tokio"], optional = true }
 reqwest = { version = "0.13", default-features = false, features = ["stream", "rustls"] }
