@@ -6,6 +6,7 @@ use crate::{Context, Result};
 use hmac::Hmac;
 use hmac::KeyInit;
 use hmac::Mac;
+use hmac::SimpleHmac;
 use sha1::Digest;
 use sha1::Sha1;
 use sha3::Sha3_256 as Sha3;
@@ -63,7 +64,7 @@ impl FromStr for SecretKey {
         let _: Hmac<Sha1> = Hmac::<Sha1>::new_from_slice(s.as_bytes())
             .map_err(|e| -> Error { e.into() })
             .context("invalid key supplied")?;
-        let _: Hmac<Sha3> = Hmac::<Sha3>::new_from_slice(s.as_bytes())
+        let _: SimpleHmac<Sha3> = SimpleHmac::<Sha3>::new_from_slice(s.as_bytes())
             .map_err(|e| -> Error { e.into() })
             .context("invalid key supplied")?;
         Ok(SecretKey(s.to_string()))
@@ -136,7 +137,7 @@ impl SecretKey {
     pub async fn sign_url(&self, image_url: &url::Url, expire: Option<u64>) -> String {
         match expire {
             Some(expire) => {
-                let mut hm = Hmac::<Sha3>::new_from_slice(self.0.as_bytes()).expect("invalid key");
+                let mut hm = SimpleHmac::<Sha3>::new_from_slice(self.0.as_bytes()).expect("invalid key");
                 hm.update(image_url.as_str().as_bytes());
                 hm.update(&expire.to_le_bytes());
                 use base64::Engine;
