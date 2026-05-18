@@ -137,7 +137,8 @@ impl SecretKey {
     pub async fn sign_url(&self, image_url: &url::Url, expire: Option<u64>) -> String {
         match expire {
             Some(expire) => {
-                let mut hm = SimpleHmac::<Sha3>::new_from_slice(self.0.as_bytes()).expect("invalid key");
+                let mut hm =
+                    SimpleHmac::<Sha3>::new_from_slice(self.0.as_bytes()).expect("invalid key");
                 hm.update(image_url.as_str().as_bytes());
                 hm.update(&expire.to_le_bytes());
                 use base64::Engine;
