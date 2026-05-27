@@ -24,7 +24,7 @@ opentelemetry-otlp = { version = "0.32.0", default-features = false, features = 
 opentelemetry_sdk = { version = "0.32.1", features = ["rt-tokio"], optional = true }
 reqwest = { version = "0.13", default-features = false, features = ["stream", "rustls"] }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0.140"
+serde_json = "1.0.150"
 sha1 = "0.11.0"
 sha3 = "0.12.0"
 thiserror = "2.0.12"
